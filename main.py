@@ -1,13 +1,16 @@
 from fastapi import FastAPI, Body, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from itertools import combinations
 from datetime import datetime
+from io import StringIO
+import asyncio
 import hashlib
 import json
+import requests
+import pandas as pd
 
 try:
     from pywebpush import webpush, WebPushException
@@ -35,12 +38,27 @@ SPORT_LABELS = {
     "Volleyball": "Volleyball 🏐",
     "Ultimate Ball": "Ultimate Ball 🥏",
 }
-VERSION_LABELS = {
-    "1": "المجموعات",
-    "2": "المجموعات 2",
+VERSION_LABELS = {"1": "المجموعات", "2": "المجموعات 2"}
+DAY_LABELS = {"Day1": "اليوم الأول", "Day2": "اليوم الثاني"}
+
+DEFAULT_VISIBILITY = {
+    "groups": True,
+    "groups2": True,
+    "finals": True,
+    "matches_day1": True,
+    "matches_day2": True,
+    "results_day1": True,
+    "results_day2": True,
 }
 
 DATA_FILE = Path("warzone_data.json")
+
+MATCHES_URLS = {
+    "Day1": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=186915705&single=true&output=csv",
+    "Day2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqzlySvoK19S0Maw_xLSlUMmGcOPx6eNqiwKJKCtrHwkDxKuO95ZJKbvyNcXns8TxRe1oYnhZRtlNs/pub?gid=1547895490&single=true&output=csv",
+}
+
+all_matches_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in MATCHES_URLS}
 
 # =========================
 # Push Notifications
@@ -64,19 +82,56 @@ class GroupPayload(BaseModel):
 
 
 class ResultPayload(BaseModel):
-    match_id: str
-    score1: int
-    score2: int
+    schedule_key: str
+    day_name: str
+    sport: str
+    version: str
+    group: str
+    team1: str
+    team2: str
+    score1: int = Field(..., ge=0)
+    score2: int = Field(..., ge=0)
+    match_time: str = ""
+    match_text: str = ""
     notify: bool = False
+
+
+class FinalMatch(BaseModel):
+    team1: str = ""
+    team2: str = ""
+    score1: str = "-"
+    score2: str = "-"
+
+
+class FinalsPayload(BaseModel):
+    sport: str
+    semi1: FinalMatch
+    semi2: FinalMatch
+    final: FinalMatch
+
+
+class VisibilityPayload(BaseModel):
+    visibility: Dict[str, bool]
 
 
 # =========================
 # Data helpers
 # =========================
+def default_finals_for_sport(sport: str) -> Dict[str, Dict[str, str]]:
+    return {
+        "sport": sport,
+        "semi1": {"team1": "X1", "team2": "Y2", "score1": "-", "score2": "-"},
+        "semi2": {"team1": "X2", "team2": "Y1", "score1": "-", "score2": "-"},
+        "final": {"team1": "الفائز 1", "team2": "الفائز 2", "score1": "-", "score2": "-"},
+    }
+
+
 def blank_data() -> Dict[str, Any]:
     return {
         "groups": {sport: {"1": {}, "2": {}} for sport in SPORTS},
         "results": {},
+        "finals": {sport: default_finals_for_sport(sport) for sport in SPORTS},
+        "visibility": DEFAULT_VISIBILITY.copy(),
     }
 
 
@@ -95,10 +150,15 @@ def load_data() -> Dict[str, Any]:
     # migrations / safety
     data.setdefault("groups", {})
     data.setdefault("results", {})
+    data.setdefault("finals", {})
+    data.setdefault("visibility", {})
     for sport in SPORTS:
         data["groups"].setdefault(sport, {})
         data["groups"][sport].setdefault("1", {})
         data["groups"][sport].setdefault("2", {})
+        data["finals"].setdefault(sport, default_finals_for_sport(sport))
+    for key, default_value in DEFAULT_VISIBILITY.items():
+        data["visibility"].setdefault(key, default_value)
     return data
 
 
@@ -107,8 +167,15 @@ def save_data(data: Dict[str, Any]) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def normalize_text(value: Any) -> str:
+    return " ".join(str(value or "").strip().split()).casefold()
+
+
+def clean_team_name(name: Any) -> str:
+    return str(name or "").strip()
+
+
 def normalize_sport_and_version(sport_name: str) -> tuple[str, str]:
-    """Supports /standings/Football and /standings/Football2."""
     sport_name = sport_name.strip()
     if sport_name.endswith("2"):
         maybe_sport = sport_name[:-1]
@@ -119,77 +186,165 @@ def normalize_sport_and_version(sport_name: str) -> tuple[str, str]:
     raise HTTPException(status_code=404, detail="Sport not found")
 
 
-def clean_team_name(name: str) -> str:
-    return str(name).strip()
+def get_schedule_sport_column(sport: str) -> str:
+    clean = str(sport or "").replace("2", "").strip()
+    if clean in ["Ultimate", "Ultimate Ball"]:
+        return "Ultimate Ball"
+    return clean
 
 
-def make_match_id(sport: str, version: str, group: str, team1: str, team2: str) -> str:
-    raw = f"{sport}|{version}|{group}|{team1}|{team2}"
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+def make_schedule_key(day_name: str, sport: str, row_index: int, match_time: str, match_text: str) -> str:
+    raw = f"{day_name}|{sport}|{row_index}|{match_time}|{match_text}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
 
 
-def generate_matches(
-    data: Dict[str, Any],
-    sport_filter: Optional[str] = None,
-    version_filter: Optional[str] = None,
-    group_filter: Optional[str] = None,
-    only_unplayed: bool = False,
-) -> List[Dict[str, Any]]:
-    results = data.get("results", {})
-    matches: List[Dict[str, Any]] = []
+def parse_match_text(match_text: Any) -> tuple[str, str]:
+    text = " ".join(str(match_text or "").replace("\n", " ").split()).strip()
+    if not text or text == "-":
+        return "", ""
 
-    for sport in SPORTS:
-        if sport_filter and sport != sport_filter:
+    separators = [
+        " ضد ", " VS ", " vs ", " Vs ", " v ", " V ",
+        " × ", " x ", " X ", " - ", " – ", " — ", " / ", " | ", ":",
+    ]
+    for sep in separators:
+        if sep in text:
+            parts = [p.strip() for p in text.split(sep, 1)]
+            if len(parts) == 2 and parts[0] and parts[1]:
+                return parts[0], parts[1]
+
+    # fallback للماتشات المكتوبة بدون مسافات: TeamA-TeamB أو 3-4
+    for sep in ["-", "–", "—", "×", "x", "X", "/", "|"]:
+        if sep in text:
+            parts = [p.strip() for p in text.split(sep, 1)]
+            if len(parts) == 2 and parts[0] and parts[1]:
+                return parts[0], parts[1]
+
+    return "", ""
+
+
+def fetch_matches_once(day_name: str) -> List[Dict[str, Any]]:
+    if day_name not in MATCHES_URLS:
+        raise HTTPException(status_code=404, detail="اليوم غير موجود")
+    response = requests.get(MATCHES_URLS[day_name], timeout=20)
+    response.raise_for_status()
+    response.encoding = "utf-8"
+    df = pd.read_csv(StringIO(response.text))
+    df.columns = df.columns.str.strip()
+    df = df.fillna("")
+    rows = df.to_dict(orient="records")
+    all_matches_data[day_name] = rows
+    return rows
+
+
+def get_schedule_rows(day_name: str) -> List[Dict[str, Any]]:
+    if day_name not in MATCHES_URLS:
+        raise HTTPException(status_code=404, detail="اليوم غير موجود")
+    if not all_matches_data.get(day_name):
+        try:
+            return fetch_matches_once(day_name)
+        except Exception as e:
+            print(f"❌ Error loading matches {day_name}: {e}")
+            return []
+    return all_matches_data.get(day_name, [])
+
+
+def find_group_for_match(data: Dict[str, Any], sport: str, team1: str, team2: str) -> Dict[str, str]:
+    t1 = normalize_text(team1)
+    t2 = normalize_text(team2)
+    if not t1 or not t2:
+        return {"version": "", "group": ""}
+
+    for version in ["1", "2"]:
+        groups = data.get("groups", {}).get(sport, {}).get(version, {})
+        for group_name, teams in groups.items():
+            team_norms = {normalize_text(t) for t in teams}
+            if t1 in team_norms and t2 in team_norms:
+                return {"version": version, "group": group_name}
+    return {"version": "", "group": ""}
+
+
+def build_available_schedule_matches(day_name: str, sport: str) -> List[Dict[str, Any]]:
+    if sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    data = load_data()
+    rows = get_schedule_rows(day_name)
+    column = get_schedule_sport_column(sport)
+    available: List[Dict[str, Any]] = []
+
+    for index, row in enumerate(rows):
+        match_text = str(row.get(column, "") or "").strip()
+        if not match_text or match_text == "-":
             continue
-        for version in ["1", "2"]:
-            if version_filter and version != str(version_filter):
-                continue
-            groups = data["groups"].get(sport, {}).get(version, {})
-            for group_name in sorted(groups.keys()):
-                if group_filter and group_name != group_filter:
-                    continue
-                teams = [clean_team_name(t) for t in groups[group_name] if clean_team_name(t)]
-                for team1, team2 in combinations(teams, 2):
-                    match_id = make_match_id(sport, version, group_name, team1, team2)
-                    result = results.get(match_id)
-                    played = result is not None
-                    if only_unplayed and played:
-                        continue
-                    match = {
-                        "id": match_id,
-                        "sport": sport,
-                        "sport_label": SPORT_LABELS.get(sport, sport),
-                        "version": version,
-                        "version_label": VERSION_LABELS.get(version, version),
-                        "group": group_name,
-                        "team1": team1,
-                        "team2": team2,
-                        "played": played,
-                        "score1": None,
-                        "score2": None,
-                        "status": "تم اللعب" if played else "لم تُلعب",
-                    }
-                    if result:
-                        match["score1"] = result.get("score1")
-                        match["score2"] = result.get("score2")
-                        match["played_at"] = result.get("played_at")
-                    matches.append(match)
-    return matches
+        match_time = str(row.get("التوقيت", row.get("time", row.get("Time", ""))) or "").strip()
+        schedule_key = make_schedule_key(day_name, sport, index, match_time, match_text)
+        if schedule_key in data.get("results", {}):
+            continue
+
+        team1, team2 = parse_match_text(match_text)
+        group_info = find_group_for_match(data, sport, team1, team2)
+        label_parts = []
+        if match_time:
+            label_parts.append(match_time)
+        label_parts.append(match_text)
+        if group_info.get("group"):
+            label_parts.append(f"{VERSION_LABELS.get(group_info['version'], '')} / المجموعة {group_info['group']}")
+
+        available.append({
+            "id": schedule_key,
+            "schedule_key": schedule_key,
+            "day_name": day_name,
+            "day_label": DAY_LABELS.get(day_name, day_name),
+            "sport": sport,
+            "sport_label": SPORT_LABELS.get(sport, sport),
+            "row_index": index,
+            "time": match_time,
+            "match_time": match_time,
+            "match_text": match_text,
+            "team1": team1,
+            "team2": team2,
+            "version": group_info.get("version", ""),
+            "group": group_info.get("group", ""),
+            "can_parse": bool(team1 and team2),
+            "label": " | ".join(label_parts),
+        })
+    return available
 
 
-def cleanup_orphan_results(data: Dict[str, Any]) -> None:
-    valid_ids = {m["id"] for m in generate_matches(data)}
-    data["results"] = {
-        match_id: result
-        for match_id, result in data.get("results", {}).items()
-        if match_id in valid_ids
-    }
+
+
+def canonical_team_name(data: Dict[str, Any], sport: str, version: str, group: str, input_name: str) -> str:
+    teams = data.get("groups", {}).get(sport, {}).get(version, {}).get(group, [])
+    wanted = normalize_text(input_name)
+    for team in teams:
+        if normalize_text(team) == wanted:
+            return clean_team_name(team)
+    return clean_team_name(input_name)
+
+
+def ensure_result_valid(data: Dict[str, Any], payload: ResultPayload) -> None:
+    if payload.sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    if payload.version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="اختار المجموعات أو المجموعات 2")
+    if payload.day_name not in ["Day1", "Day2"]:
+        raise HTTPException(status_code=400, detail="اليوم غير صحيح")
+    if normalize_text(payload.team1) == normalize_text(payload.team2):
+        raise HTTPException(status_code=400, detail="لا يمكن اختيار نفس الفريق مرتين")
+
+    groups = data.get("groups", {}).get(payload.sport, {}).get(payload.version, {})
+    teams = groups.get(payload.group)
+    if teams is None:
+        raise HTTPException(status_code=404, detail="المجموعة غير موجودة في الأدمن")
+
+    team_norms = {normalize_text(t) for t in teams}
+    if normalize_text(payload.team1) not in team_norms or normalize_text(payload.team2) not in team_norms:
+        raise HTTPException(status_code=404, detail="الفريقين لازم يكونوا موجودين في نفس المجموعة المختارة")
 
 
 def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[Dict[str, Any]]]:
-    groups = data["groups"].get(sport, {}).get(version, {})
-    all_matches = generate_matches(data, sport_filter=sport, version_filter=version)
-    result_by_id = data.get("results", {})
+    groups = data.get("groups", {}).get(sport, {}).get(version, {})
+    results = data.get("results", {})
     standings: Dict[str, List[Dict[str, Any]]] = {}
 
     for group_name in sorted(groups.keys()):
@@ -208,17 +363,13 @@ def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[
                 "نقاط": 0,
             }
 
-        for match in all_matches:
-            if match["group"] != group_name:
+        for result in results.values():
+            if result.get("sport") != sport or result.get("version") != version or result.get("group") != group_name:
                 continue
-            result = result_by_id.get(match["id"])
-            if not result:
-                continue
-
-            t1, t2 = match["team1"], match["team2"]
+            t1, t2 = result.get("team1", ""), result.get("team2", "")
             if t1 not in table or t2 not in table:
                 continue
-            s1, s2 = int(result["score1"]), int(result["score2"])
+            s1, s2 = int(result.get("score1", 0)), int(result.get("score2", 0))
 
             table[t1]["لعب"] += 1
             table[t2]["لعب"] += 1
@@ -245,21 +396,24 @@ def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[
         for row in table.values():
             row["فرق"] = row["له"] - row["عليه"]
             rows.append(row)
-
         rows.sort(key=lambda r: (-r["نقاط"], -r["فرق"], -r["له"], r["عليه"], r["الفريق"]))
         standings[group_name] = rows
 
     return standings
 
 
+def get_day_results_list(data: Dict[str, Any], day_name: str) -> List[Dict[str, Any]]:
+    rows = [r for r in data.get("results", {}).values() if r.get("day_name") == day_name]
+    rows.sort(key=lambda r: (str(r.get("match_time", "")), str(r.get("sport", "")), str(r.get("group", ""))))
+    return rows
+
+
 def send_push_to_all(title: str, body: str) -> int:
     if webpush is None:
         print("pywebpush is not installed; notification skipped.")
         return 0
-
     message_data = json.dumps({"title": title, "body": body}, ensure_ascii=False)
     inactive_subs = []
-
     for sub_str in list(subscribers):
         sub_data = json.loads(sub_str)
         try:
@@ -270,20 +424,34 @@ def send_push_to_all(title: str, body: str) -> int:
                 vapid_claims=VAPID_CLAIMS,
             )
         except WebPushException as ex:
-            if ex.response and ex.response.status_code in [404, 410]:
+            if getattr(ex, "response", None) and ex.response.status_code in [404, 410]:
                 inactive_subs.append(sub_str)
         except Exception as ex:
             print(f"Push error: {ex}")
-
     for sub in inactive_subs:
         subscribers.discard(sub)
-
     return len(subscribers)
+
+
+async def sync_matches_loop():
+    while True:
+        for day in MATCHES_URLS:
+            try:
+                rows = await asyncio.to_thread(fetch_matches_once, day)
+                print(f"✅ Updated sheet matches: {day} ({len(rows)} rows)")
+            except Exception as e:
+                print(f"❌ Error syncing {day}: {e}")
+        await asyncio.sleep(120)
 
 
 # =========================
 # Static pages
 # =========================
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(sync_matches_loop())
+
+
 @app.get("/")
 async def serve_home():
     return FileResponse("index.html")
@@ -326,42 +494,27 @@ def get_standings(sport_name: str):
 
 @app.get("/matches/{day_name}")
 def get_matches(day_name: str):
-    data = load_data()
-    version = "1" if day_name == "Day1" else "2"
-    return generate_matches(data, version_filter=version)
+    return get_schedule_rows(day_name)
+
+
+@app.get("/day-results/{day_name}")
+def get_day_results(day_name: str):
+    if day_name not in ["Day1", "Day2"]:
+        raise HTTPException(status_code=404, detail="اليوم غير موجود")
+    return get_day_results_list(load_data(), day_name)
 
 
 @app.get("/finals/{sport_name}")
-def get_finals(sport_name: str, version: str = "1"):
+def get_finals(sport_name: str):
+    sport, _ = normalize_sport_and_version(sport_name)
     data = load_data()
-    sport, default_version = normalize_sport_and_version(sport_name)
-    version = version if version in ["1", "2"] else default_version
-    standings = calculate_standings(data, sport, version)
-    group_names = sorted(standings.keys())
+    return data.get("finals", {}).get(sport, default_finals_for_sport(sport))
 
-    if len(group_names) < 2:
-        return {
-            "sport": sport,
-            "version": version,
-            "semi1": {"team1": "أول مجموعة A", "team2": "ثاني مجموعة B", "score1": "-", "score2": "-"},
-            "semi2": {"team1": "أول مجموعة B", "team2": "ثاني مجموعة A", "score1": "-", "score2": "-"},
-            "final": {"team1": "الفائز 1", "team2": "الفائز 2", "score1": "-", "score2": "-"},
-        }
 
-    g1, g2 = group_names[0], group_names[1]
-    group1 = standings[g1]
-    group2 = standings[g2]
-
-    def name(rows, index, placeholder):
-        return rows[index]["الفريق"] if len(rows) > index else placeholder
-
-    return {
-        "sport": sport,
-        "version": version,
-        "semi1": {"team1": name(group1, 0, f"{g1}1"), "team2": name(group2, 1, f"{g2}2"), "score1": "-", "score2": "-"},
-        "semi2": {"team1": name(group2, 0, f"{g2}1"), "team2": name(group1, 1, f"{g1}2"), "score1": "-", "score2": "-"},
-        "final": {"team1": "الفائز 1", "team2": "الفائز 2", "score1": "-", "score2": "-"},
-    }
+@app.get("/site-settings")
+def get_site_settings():
+    data = load_data()
+    return {"visibility": data.get("visibility", DEFAULT_VISIBILITY.copy())}
 
 
 # =========================
@@ -374,9 +527,11 @@ def get_admin_data():
         "sports": SPORTS,
         "sport_labels": SPORT_LABELS,
         "version_labels": VERSION_LABELS,
-        "groups": data["groups"],
-        "matches": generate_matches(data),
-        "results": data.get("results", {}),
+        "day_labels": DAY_LABELS,
+        "groups": data.get("groups", {}),
+        "results": list(data.get("results", {}).values()),
+        "finals": data.get("finals", {}),
+        "visibility": data.get("visibility", DEFAULT_VISIBILITY.copy()),
     }
 
 
@@ -385,7 +540,6 @@ def save_group(payload: GroupPayload):
     sport = payload.sport.strip()
     version = str(payload.version).strip()
     group = payload.group.strip()
-
     if sport not in SPORTS:
         raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
     if version not in ["1", "2"]:
@@ -397,106 +551,121 @@ def save_group(payload: GroupPayload):
     seen = set()
     for team in payload.teams:
         clean = clean_team_name(team)
-        if clean and clean not in seen:
+        key = normalize_text(clean)
+        if clean and key not in seen:
             teams.append(clean)
-            seen.add(clean)
-
+            seen.add(key)
     if len(teams) < 2:
         raise HTTPException(status_code=400, detail="لازم تضيف فريقين على الأقل")
 
     data = load_data()
     data["groups"][sport][version][group] = teams
-    cleanup_orphan_results(data)
     save_data(data)
-
-    generated_count = len(list(combinations(teams, 2)))
-    return {
-        "status": "success",
-        "message": f"تم حفظ المجموعة وتوليد {generated_count} ماتش تلقائيًا",
-        "generated_matches": generated_count,
-    }
+    return {"status": "success", "message": "تم حفظ المجموعة"}
 
 
 @app.delete("/admin/group")
-def delete_group(
-    sport: str = Query(...),
-    version: str = Query(...),
-    group: str = Query(...),
-):
+def delete_group(sport: str = Query(...), version: str = Query(...), group: str = Query(...)):
+    data = load_data()
     if sport not in SPORTS or version not in ["1", "2"]:
         raise HTTPException(status_code=400, detail="بيانات غير صحيحة")
-
-    data = load_data()
     groups = data["groups"].get(sport, {}).get(version, {})
     if group not in groups:
         raise HTTPException(status_code=404, detail="المجموعة غير موجودة")
-
     del groups[group]
-    cleanup_orphan_results(data)
+    # سيب النتائج محفوظة للرجوع، لكنها لن تؤثر على الترتيب لو المجموعة اتحذفت
     save_data(data)
-    return {"status": "success", "message": "تم حذف المجموعة ونتائجها"}
+    return {"status": "success", "message": "تم حذف المجموعة"}
 
 
-@app.get("/admin/matches")
-def admin_matches(
-    sport: Optional[str] = Query(None),
-    version: Optional[str] = Query(None),
-    group: Optional[str] = Query(None),
-    only_unplayed: bool = Query(False),
-):
-    data = load_data()
-    if sport == "":
-        sport = None
-    if version == "":
-        version = None
-    if group == "":
-        group = None
-    return generate_matches(data, sport_filter=sport, version_filter=version, group_filter=group, only_unplayed=only_unplayed)
+@app.get("/admin/available-schedule-matches")
+def available_schedule_matches(day_name: str = "Day1", sport: str = "Football"):
+    return build_available_schedule_matches(day_name, sport)
 
 
 @app.post("/admin/result")
 def save_result(payload: ResultPayload):
-    if payload.score1 < 0 or payload.score2 < 0:
-        raise HTTPException(status_code=400, detail="النتيجة لا يمكن تكون بالسالب")
-
     data = load_data()
-    all_matches = generate_matches(data)
-    match = next((m for m in all_matches if m["id"] == payload.match_id), None)
-    if not match:
-        raise HTTPException(status_code=404, detail="الماتش غير موجود أو المجموعة اتغيرت")
+    ensure_result_valid(data, payload)
+    key = payload.schedule_key.strip()
+    if not key:
+        raw = f"{payload.day_name}|{payload.sport}|{payload.version}|{payload.group}|{payload.team1}|{payload.team2}|{payload.match_time}|{payload.match_text}"
+        key = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
+
+    team1_canonical = canonical_team_name(data, payload.sport, payload.version, payload.group, payload.team1)
+    team2_canonical = canonical_team_name(data, payload.sport, payload.version, payload.group, payload.team2)
 
     data.setdefault("results", {})
-    data["results"][payload.match_id] = {
-        "sport": match["sport"],
-        "version": match["version"],
-        "group": match["group"],
-        "team1": match["team1"],
-        "team2": match["team2"],
+    data["results"][key] = {
+        "id": key,
+        "schedule_key": key,
+        "day_name": payload.day_name,
+        "day_label": DAY_LABELS.get(payload.day_name, payload.day_name),
+        "sport": payload.sport,
+        "sport_label": SPORT_LABELS.get(payload.sport, payload.sport),
+        "version": payload.version,
+        "version_label": VERSION_LABELS.get(payload.version, payload.version),
+        "group": payload.group,
+        "team1": team1_canonical,
+        "team2": team2_canonical,
         "score1": payload.score1,
         "score2": payload.score2,
+        "match_time": payload.match_time,
+        "match_text": payload.match_text,
         "played_at": datetime.utcnow().isoformat() + "Z",
     }
     save_data(data)
 
     sent_to = 0
     if payload.notify:
-        title = f"نتيجة {match['sport_label']} 🏆"
-        body = f"{match['team1']} {payload.score1} - {payload.score2} {match['team2']} | المجموعة {match['group']}"
+        title = f"نتيجة {SPORT_LABELS.get(payload.sport, payload.sport)} 🏆"
+        body = f"{team1_canonical} {payload.score1} - {payload.score2} {team2_canonical} | {DAY_LABELS.get(payload.day_name)}"
         sent_to = send_push_to_all(title, body)
 
     return {
         "status": "success",
-        "message": "تم حفظ النتيجة وتحديث المجموعة",
-        "match": {**match, "score1": payload.score1, "score2": payload.score2, "played": True},
+        "message": "تم حفظ النتيجة وتحديث الترتيب ونتائج اليوم",
         "sent_to": sent_to,
+        "result": data["results"][key],
+        "standings": calculate_standings(data, payload.sport, payload.version),
     }
 
 
-@app.delete("/admin/result/{match_id}")
-def delete_result(match_id: str):
+@app.delete("/admin/result/{result_id}")
+def delete_result(result_id: str):
     data = load_data()
-    if match_id not in data.get("results", {}):
+    if result_id not in data.get("results", {}):
         raise HTTPException(status_code=404, detail="النتيجة غير موجودة")
-    del data["results"][match_id]
+    del data["results"][result_id]
     save_data(data)
-    return {"status": "success", "message": "تم حذف النتيجة والماتش رجع للقائمة"}
+    return {"status": "success", "message": "تم حذف النتيجة والماتش رجع لقائمة التسجيل"}
+
+
+@app.post("/admin/finals")
+def save_finals(payload: FinalsPayload):
+    sport = payload.sport.strip()
+    if sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    data = load_data()
+    data.setdefault("finals", {})
+    data["finals"][sport] = {
+        "sport": sport,
+        "semi1": payload.semi1.dict(),
+        "semi2": payload.semi2.dict(),
+        "final": payload.final.dict(),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    save_data(data)
+    return {"status": "success", "message": "تم حفظ النهائيات", "finals": data["finals"][sport]}
+
+
+@app.post("/admin/visibility")
+def save_visibility(payload: VisibilityPayload):
+    data = load_data()
+    current = data.get("visibility", DEFAULT_VISIBILITY.copy())
+    for key in DEFAULT_VISIBILITY:
+        if key in payload.visibility:
+            current[key] = bool(payload.visibility[key])
+    data["visibility"] = current
+    save_data(data)
+    return {"status": "success", "message": "تم تحديث إظهار/إخفاء التابات", "visibility": current}
