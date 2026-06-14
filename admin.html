@@ -8,6 +8,7 @@
         :root {
             --bg-dark: #0f172a;
             --card-bg: rgba(30, 41, 59, 0.78);
+            --card-bg-2: rgba(15, 23, 42, 0.68);
             --primary-blue: #38bdf8;
             --accent-green: #34d399;
             --accent-orange: #f59e0b;
@@ -15,688 +16,542 @@
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --border-color: rgba(255, 255, 255, 0.12);
-            --input-bg: rgba(15, 23, 42, 0.68);
         }
-
         * { box-sizing: border-box; }
-
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at top right, #082f49 0, #0f172a 35%, #020617 100%);
+            background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), transparent 35%), var(--bg-dark);
             color: var(--text-main);
             margin: 0;
+            padding: 30px;
             min-height: 100vh;
-            padding: 32px 18px;
         }
-
-        .page {
-            width: min(1180px, 100%);
-            margin: 0 auto;
-        }
-
-        .page-header {
-            text-align: center;
-            margin-bottom: 28px;
-        }
-
-        .page-header h1 {
-            margin: 0 0 8px;
-            color: var(--primary-blue);
-            font-size: clamp(1.8rem, 4vw, 2.6rem);
-        }
-
-        .page-header p {
-            margin: 0;
-            color: var(--text-muted);
-        }
-
+        .page-title { text-align: center; color: var(--primary-blue); margin-bottom: 25px; }
         .grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
             gap: 22px;
+            max-width: 1450px;
+            margin: 0 auto;
             align-items: start;
         }
-
         .card {
             background: var(--card-bg);
-            backdrop-filter: blur(14px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--border-color);
-            padding: 26px;
-            border-radius: 24px;
-            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+            padding: 24px;
+            border-radius: 22px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
         }
-
-        .card.full { grid-column: 1 / -1; }
-
-        h2 {
-            margin: 0 0 8px;
-            color: var(--primary-blue);
-            font-size: 1.35rem;
-        }
-
-        .hint {
-            color: var(--text-muted);
-            font-size: 0.93rem;
-            line-height: 1.7;
-            margin: 0 0 20px;
-        }
-
-        .row {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-        }
-
-        .form-group { margin-bottom: 17px; }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--text-muted);
-            font-size: 0.92rem;
-            font-weight: 600;
-        }
-
+        .card h2 { margin: 0 0 12px; color: var(--primary-blue); font-size: 1.35rem; }
+        .card p.help { color: var(--text-muted); line-height: 1.8; margin-top: 0; font-size: 0.92rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 7px; color: var(--text-muted); font-size: 0.92rem; }
         input, textarea, select {
             width: 100%;
-            padding: 13px 14px;
-            background: var(--input-bg);
+            padding: 12px 13px;
+            background: var(--card-bg-2);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             color: var(--text-main);
             font-size: 1rem;
             outline: none;
-            transition: border 0.2s, box-shadow 0.2s;
         }
-
-        select option {
-            background: #0f172a;
-            color: white;
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 150px;
-            line-height: 1.8;
-        }
-
-        input:focus, textarea:focus, select:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
-        }
-
-        .btn {
+        textarea { min-height: 105px; resize: vertical; line-height: 1.7; }
+        input:focus, textarea:focus, select:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12); }
+        button {
             width: 100%;
-            padding: 14px;
+            padding: 13px;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: white;
             border: none;
             border-radius: 12px;
-            color: white;
-            font-size: 1.03rem;
-            font-weight: 800;
+            font-size: 1rem;
+            font-weight: bold;
             cursor: pointer;
-            transition: transform .2s, box-shadow .2s, opacity .2s;
+            transition: all 0.2s ease;
         }
-
-        .btn:hover { transform: translateY(-1px); }
-        .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-        .btn-primary { background: linear-gradient(135deg, #0284c7, #0ea5e9); box-shadow: 0 8px 18px rgba(14, 165, 233, .25); }
-        .btn-green { background: linear-gradient(135deg, #059669, #34d399); box-shadow: 0 8px 18px rgba(52, 211, 153, .20); }
-        .btn-orange { background: linear-gradient(135deg, #d97706, #f59e0b); box-shadow: 0 8px 18px rgba(245, 158, 11, .20); }
-        .btn-danger { background: linear-gradient(135deg, #dc2626, #f87171); box-shadow: 0 8px 18px rgba(248, 113, 113, .16); }
-        .btn-small { padding: 8px 10px; font-size: .85rem; width: auto; border-radius: 9px; }
-
+        button:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(56, 189, 248, 0.22); }
+        button.secondary { background: linear-gradient(135deg, #334155, #1e293b); }
+        button.danger { background: linear-gradient(135deg, #dc2626, #991b1b); }
         .status {
+            margin-top: 12px;
+            padding: 11px;
+            border-radius: 10px;
+            text-align: center;
             display: none;
-            margin-top: 14px;
+            border: 1px solid transparent;
+            line-height: 1.7;
+        }
+        .success { background: rgba(52, 211, 153, 0.12); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3); }
+        .error { background: rgba(248, 113, 113, 0.12); color: var(--danger); border-color: rgba(248, 113, 113, 0.35); }
+        .muted-box {
+            background: var(--card-bg-2);
+            border: 1px solid var(--border-color);
             padding: 12px;
             border-radius: 12px;
-            font-weight: 700;
-            text-align: center;
-            line-height: 1.5;
-        }
-
-        .status.success { display:block; background: rgba(52, 211, 153, .12); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, .28); }
-        .status.error { display:block; background: rgba(248, 113, 113, .13); color: var(--danger); border: 1px solid rgba(248, 113, 113, .32); }
-        .status.info { display:block; background: rgba(56, 189, 248, .10); color: var(--primary-blue); border: 1px solid rgba(56, 189, 248, .25); }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 14px;
-            overflow: hidden;
-            border-radius: 14px;
-        }
-
-        th, td {
-            padding: 12px 10px;
-            border-bottom: 1px solid var(--border-color);
-            text-align: center;
-            vertical-align: middle;
-        }
-
-        th { color: #e0f2fe; background: rgba(2, 132, 199, .16); font-size: .9rem; }
-        td { color: #dbeafe; font-size: .92rem; }
-        tr:hover td { background: rgba(255,255,255,.03); }
-
-        .table-wrap { overflow-x: auto; }
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 9px;
-            border-radius: 999px;
-            background: rgba(56, 189, 248, .12);
-            border: 1px solid rgba(56, 189, 248, .22);
-            color: #bae6fd;
-            font-size: .82rem;
-            font-weight: 700;
-        }
-
-        .checkbox-line {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 10px;
             color: var(--text-muted);
-            margin-bottom: 15px;
+            line-height: 1.8;
+            font-size: 0.9rem;
         }
-
-        .checkbox-line input { width: auto; }
-
-        .match-preview {
-            background: rgba(15, 23, 42, .6);
+        .groups-list, .results-list { max-height: 300px; overflow: auto; margin-top: 12px; }
+        .item {
+            background: var(--card-bg-2);
             border: 1px solid var(--border-color);
-            border-radius: 14px;
-            padding: 14px;
-            margin: 10px 0 18px;
-            color: #dbeafe;
-            text-align: center;
-            font-weight: 800;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
         }
-
-        .muted { color: var(--text-muted); }
-        .danger-text { color: var(--danger); }
-
-        @media (max-width: 900px) {
+        .item strong { color: var(--text-main); }
+        .pill { display: inline-block; background: rgba(56, 189, 248, .12); border: 1px solid rgba(56, 189, 248, .25); color: var(--primary-blue); border-radius: 999px; padding: 2px 8px; font-size: .82rem; margin: 2px; }
+        .checkbox-grid { display: grid; gap: 10px; }
+        .check-line {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--card-bg-2); border: 1px solid var(--border-color); padding: 10px 12px; border-radius: 12px;
+        }
+        .check-line input { width: auto; transform: scale(1.25); }
+        .full-width { grid-column: 1 / -1; }
+        @media (max-width: 720px) {
+            body { padding: 12px; }
             .grid { grid-template-columns: 1fr; }
-            .row { grid-template-columns: 1fr; }
-            body { padding: 18px 10px; }
-            .card { padding: 20px; border-radius: 18px; }
+            .form-row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-<div class="page">
-    <div class="page-header">
-        <h1>🎮 لوحة تحكم War Zone</h1>
-        <p>من هنا بتدخل المجموعات والفرق، والسيستم يولّد الماتشات تلقائيًا بدون Google Sheets.</p>
-    </div>
+    <h1 class="page-title">🏆 لوحة تحكم War Zone</h1>
 
     <div class="grid">
         <section class="card">
-            <h2>➕ إدارة المجموعات</h2>
-            <p class="hint">اكتب فرق المجموعة كل فريق في سطر. بعد الحفظ، كل فريق هيلعب ضد باقي فرق نفس المجموعة مرة واحدة.</p>
+            <h2>📣 إرسال إشعار للمشتركين</h2>
+            <p class="help">استخدمها لأي إعلان عام غير نتيجة الماتش.</p>
+            <form onsubmit="sendPushNotification(event)">
+                <div class="form-group">
+                    <label>عنوان الإشعار</label>
+                    <input type="text" id="pushTitle" placeholder="مثال: مباراة قوية بدأت الآن! ⚽" required>
+                </div>
+                <div class="form-group">
+                    <label>نص الإشعار</label>
+                    <textarea id="pushBody" placeholder="مثال: تابعوا التحديثات الآن..." required></textarea>
+                </div>
+                <button type="submit" id="pushBtn">إرسال الإشعار فوراً 🚀</button>
+            </form>
+            <div id="pushStatus" class="status"></div>
+        </section>
 
-            <form id="groupForm" onsubmit="saveGroup(event)">
-                <div class="row">
+        <section class="card">
+            <h2>👥 إضافة / تعديل مجموعة</h2>
+            <p class="help">اكتب فرق المجموعة هنا. الترتيب بيتحسب من النتائج اللي بتدخلها في الأدمن.</p>
+            <form onsubmit="saveGroup(event)">
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="groupSport">اللعبة</label>
+                        <label>اللعبة</label>
                         <select id="groupSport"></select>
                     </div>
                     <div class="form-group">
-                        <label for="groupVersion">مكان العرض</label>
+                        <label>التاب</label>
                         <select id="groupVersion">
                             <option value="1">المجموعات</option>
                             <option value="2">المجموعات 2</option>
                         </select>
                     </div>
                 </div>
-
                 <div class="form-group">
-                    <label for="groupName">اسم المجموعة</label>
-                    <input id="groupName" type="text" placeholder="مثال: A أو B أو X" required>
+                    <label>اسم المجموعة</label>
+                    <input type="text" id="groupName" placeholder="مثال: A" required>
                 </div>
-
                 <div class="form-group">
-                    <label for="teamsText">الفرق</label>
-                    <textarea id="teamsText" placeholder="فريق 1&#10;فريق 2&#10;فريق 3&#10;فريق 4" required></textarea>
+                    <label>الفرق، كل فريق في سطر</label>
+                    <textarea id="groupTeams" placeholder="Team 1&#10;Team 2&#10;Team 3" required></textarea>
                 </div>
-
-                <button class="btn btn-green" type="submit" id="saveGroupBtn">✅ حفظ المجموعة وتوليد الماتشات</button>
-                <div id="groupStatus" class="status"></div>
+                <button type="submit">حفظ المجموعة ✅</button>
             </form>
+            <div id="groupStatus" class="status"></div>
+            <div class="groups-list" id="groupsList"></div>
+        </section>
+
+        <section class="card full-width">
+            <h2>⚽ تسجيل نتيجة من جدول الماتشات</h2>
+            <p class="help">الماتشات هنا جاية من Google Sheets القديمة. بعد حفظ النتيجة، الماتش يتشال من القائمة وبيظهر في تاب نتائج اليوم.</p>
+            <form onsubmit="saveResult(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>اليوم</label>
+                        <select id="resultDay" onchange="loadAvailableMatches()">
+                            <option value="Day1">اليوم الأول</option>
+                            <option value="Day2">اليوم الثاني</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>اللعبة</label>
+                        <select id="resultSport" onchange="loadAvailableMatches()"></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>الماتش من جدول الماتشات</label>
+                    <select id="resultMatch" onchange="fillMatchData()"></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>التاب</label>
+                        <select id="resultVersion" onchange="loadGroupsForResult()">
+                            <option value="1">المجموعات</option>
+                            <option value="2">المجموعات 2</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>المجموعة</label>
+                        <select id="resultGroup"></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>الفريق الأول</label>
+                        <input type="text" id="team1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>الفريق الثاني</label>
+                        <input type="text" id="team2" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>نتيجة الفريق الأول</label>
+                        <input type="number" id="score1" min="0" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>نتيجة الفريق الثاني</label>
+                        <input type="number" id="score2" min="0" value="0" required>
+                    </div>
+                </div>
+                <label class="check-line" style="margin-bottom: 15px;">
+                    <span>ابعت إشعار بالنتيجة</span>
+                    <input type="checkbox" id="notifyResult" checked>
+                </label>
+                <button type="submit">حفظ النتيجة وتحديث الترتيب ✅</button>
+            </form>
+            <div id="resultStatus" class="status"></div>
+            <div class="results-list" id="recentResults"></div>
         </section>
 
         <section class="card">
-            <h2>🏆 تسجيل نتيجة ماتش</h2>
-            <p class="hint">اختار الماتش من القائمة المتولدة تلقائيًا. بعد حفظ النتيجة، الماتش بيتشال من القائمة عشان ميتكررش.</p>
-
-            <div class="row">
-                <div class="form-group">
-                    <label for="resultSport">اللعبة</label>
-                    <select id="resultSport" onchange="onResultFilterChange()"></select>
-                </div>
-                <div class="form-group">
-                    <label for="resultVersion">مكان العرض</label>
-                    <select id="resultVersion" onchange="onResultFilterChange()">
-                        <option value="1">المجموعات</option>
-                        <option value="2">المجموعات 2</option>
-                    </select>
-                </div>
-            </div>
-
+            <h2>🏆 التحكم في النهائيات</h2>
+            <p class="help">أي اسم أو نتيجة تكتبها هنا هتظهر في تاب النهائيات بدل القيم الثابتة.</p>
             <div class="form-group">
-                <label for="resultGroup">المجموعة</label>
-                <select id="resultGroup" onchange="refreshMatchOptions()">
-                    <option value="">كل المجموعات</option>
-                </select>
+                <label>اللعبة</label>
+                <select id="finalSport" onchange="loadFinals()"></select>
             </div>
-
-            <div class="form-group">
-                <label for="matchSelect">الماتش</label>
-                <select id="matchSelect" onchange="updateMatchPreview()"></select>
+            <div class="muted-box" style="margin-bottom: 14px;">Semi Final 1</div>
+            <div class="form-row">
+                <input id="semi1Team1" placeholder="الفريق الأول">
+                <input id="semi1Score1" placeholder="-">
+                <input id="semi1Team2" placeholder="الفريق الثاني">
+                <input id="semi1Score2" placeholder="-">
             </div>
-
-            <div id="matchPreview" class="match-preview muted">اختار ماتش لعرض الفريقين هنا</div>
-
-            <form id="resultForm" onsubmit="saveResult(event)">
-                <div class="row">
-                    <div class="form-group">
-                        <label id="score1Label" for="score1">نتيجة الفريق الأول</label>
-                        <input id="score1" type="number" min="0" value="0" required>
-                    </div>
-                    <div class="form-group">
-                        <label id="score2Label" for="score2">نتيجة الفريق الثاني</label>
-                        <input id="score2" type="number" min="0" value="0" required>
-                    </div>
-                </div>
-
-                <label class="checkbox-line">
-                    <input id="notifyResult" type="checkbox" checked>
-                    ابعت إشعار بالنتيجة للمشتركين
-                </label>
-
-                <button class="btn btn-primary" type="submit" id="saveResultBtn">💾 حفظ النتيجة وتحديث المجموعة</button>
-                <div id="resultStatus" class="status"></div>
-            </form>
+            <div class="muted-box" style="margin: 14px 0;">Semi Final 2</div>
+            <div class="form-row">
+                <input id="semi2Team1" placeholder="الفريق الأول">
+                <input id="semi2Score1" placeholder="-">
+                <input id="semi2Team2" placeholder="الفريق الثاني">
+                <input id="semi2Score2" placeholder="-">
+            </div>
+            <div class="muted-box" style="margin: 14px 0;">Final</div>
+            <div class="form-row">
+                <input id="finalTeam1" placeholder="الفريق الأول">
+                <input id="finalScore1" placeholder="-">
+                <input id="finalTeam2" placeholder="الفريق الثاني">
+                <input id="finalScore2" placeholder="-">
+            </div>
+            <button style="margin-top: 15px;" onclick="saveFinals()">حفظ النهائيات 🏆</button>
+            <div id="finalsStatus" class="status"></div>
         </section>
 
-        <section class="card full">
-            <h2>📋 المجموعات المسجلة</h2>
-            <p class="hint">تقدر تعدّل أي مجموعة بالضغط على تعديل، أو تحذفها. حذف المجموعة هيحذف نتائج ماتشاتها.</p>
-            <div class="table-wrap" id="groupsList"></div>
-        </section>
-
-        <section class="card full">
-            <h2>✅ النتائج المسجلة</h2>
-            <p class="hint">لو سجلت نتيجة غلط، امسحها من هنا. بعدها الماتش يرجع تاني لقائمة التسجيل.</p>
-            <div class="table-wrap" id="resultsList"></div>
-        </section>
-
-        <section class="card full">
-            <h2>📣 إرسال إشعار للمشتركين</h2>
-            <p class="hint">استخدمه لأي إعلان عام غير نتيجة الماتش.</p>
-
-            <form id="notificationForm" onsubmit="sendPushNotification(event)">
-                <div class="row">
-                    <div class="form-group">
-                        <label for="title">عنوان الإشعار</label>
-                        <input type="text" id="title" placeholder="مثال: مباراة قوية بدأت الآن! ⚽" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="body">نص الإشعار</label>
-                        <input type="text" id="body" placeholder="تابعوا التحديثات الآن على الموقع" required>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-orange" id="submitBtn">إرسال الإشعار فورًا 🚀</button>
-                <div id="notificationStatus" class="status"></div>
-            </form>
+        <section class="card">
+            <h2>👁️ إظهار / إخفاء التابات</h2>
+            <p class="help">التحكم ده بيأثر على الصفحة الرئيسية للزوار.</p>
+            <div class="checkbox-grid" id="visibilityControls"></div>
+            <button style="margin-top: 15px;" onclick="saveVisibility()">حفظ حالة التابات ✅</button>
+            <div id="visibilityStatus" class="status"></div>
         </section>
     </div>
-</div>
 
 <script>
-const SPORTS = [
-    { name: "Football", label: "Football ⚽" },
-    { name: "Dodgeball", label: "Dodgeball 🤾🏻" },
-    { name: "Volleyball", label: "Volleyball 🏐" },
-    { name: "Ultimate Ball", label: "Ultimate Ball 🥏" },
-];
-
 let adminData = null;
-let currentMatches = [];
+let availableMatches = [];
 let selectedMatch = null;
 
-function fillSportSelects() {
-    const selects = [document.getElementById('groupSport'), document.getElementById('resultSport')];
-    selects.forEach(select => {
-        select.innerHTML = SPORTS.map(s => `<option value="${s.name}">${s.label}</option>`).join('');
-    });
+const VISIBILITY_LABELS = {
+    groups: 'المجموعات',
+    groups2: 'المجموعات ٢',
+    finals: 'نهائيات',
+    matches_day1: 'ماتشات اليوم الأول',
+    matches_day2: 'ماتشات اليوم الثاني',
+    results_day1: 'نتايج اليوم الأول',
+    results_day2: 'نتايج اليوم الثاني'
+};
+
+function setStatus(id, text, ok = true) {
+    const el = document.getElementById(id);
+    el.className = `status ${ok ? 'success' : 'error'}`;
+    el.innerText = text;
+    el.style.display = 'block';
 }
 
-function showStatus(id, type, message) {
-    const el = document.getElementById(id);
-    el.className = `status ${type}`;
-    el.innerText = message;
+async function apiJson(url, options = {}) {
+    const res = await fetch(url, options);
+    let data = null;
+    try { data = await res.json(); } catch(e) { data = {}; }
+    if (!res.ok) throw new Error(data.detail || data.message || 'حدث خطأ');
+    return data;
+}
+
+function fillSportsSelect(id) {
+    const select = document.getElementById(id);
+    select.innerHTML = adminData.sports.map(s => `<option value="${s}">${adminData.sport_labels[s] || s}</option>`).join('');
 }
 
 async function loadAdminData() {
-    const res = await fetch('/admin-data');
-    adminData = await res.json();
+    adminData = await apiJson('/admin-data');
+    ['groupSport', 'resultSport', 'finalSport'].forEach(fillSportsSelect);
     renderGroupsList();
-    renderResultsList();
-    buildGroupFilter();
-    await refreshMatchOptions();
+    renderRecentResults();
+    renderVisibilityControls();
+    loadGroupsForResult();
+    await loadAvailableMatches();
+    await loadFinals();
 }
 
-function getVersionLabel(version) {
-    return version === "2" ? "المجموعات 2" : "المجموعات";
-}
-
-function buildGroupFilter() {
-    const sport = document.getElementById('resultSport').value;
-    const version = document.getElementById('resultVersion').value;
-    const groupSelect = document.getElementById('resultGroup');
-    const groups = adminData?.groups?.[sport]?.[version] || {};
-    const current = groupSelect.value;
-
-    groupSelect.innerHTML = '<option value="">كل المجموعات</option>' +
-        Object.keys(groups).sort().map(g => `<option value="${escapeHtml(g)}">المجموعة ${escapeHtml(g)}</option>`).join('');
-
-    if ([...groupSelect.options].some(o => o.value === current)) {
-        groupSelect.value = current;
+function renderGroupsList() {
+    const box = document.getElementById('groupsList');
+    const groups = adminData.groups || {};
+    let html = '';
+    for (const sport of adminData.sports) {
+        for (const version of ['1','2']) {
+            const versionGroups = (groups[sport] && groups[sport][version]) || {};
+            for (const groupName of Object.keys(versionGroups)) {
+                const teams = versionGroups[groupName] || [];
+                html += `<div class="item">
+                    <strong>${adminData.sport_labels[sport]} / ${adminData.version_labels[version]} / المجموعة ${groupName}</strong><br>
+                    ${teams.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join('')}
+                    <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteGroup('${sport}','${version}','${escapeAttr(groupName)}')">حذف المجموعة</button>
+                </div>`;
+            }
+        }
     }
+    box.innerHTML = html || '<div class="muted-box">لسه مفيش مجموعات محفوظة.</div>';
 }
 
-function onResultFilterChange() {
-    buildGroupFilter();
-    refreshMatchOptions();
+function renderRecentResults() {
+    const box = document.getElementById('recentResults');
+    const results = adminData.results || [];
+    if (!results.length) {
+        box.innerHTML = '<div class="muted-box">لسه مفيش نتائج محفوظة.</div>';
+        return;
+    }
+    box.innerHTML = results.slice().reverse().map(r => `<div class="item">
+        <strong>${r.day_label || r.day_name} / ${r.sport_label || r.sport}</strong><br>
+        <span class="pill">${r.version_label || r.version}</span> <span class="pill">المجموعة ${escapeHtml(r.group)}</span><br>
+        ${escapeHtml(r.match_time || '')} ${escapeHtml(r.team1)} <strong>${r.score1} - ${r.score2}</strong> ${escapeHtml(r.team2)}
+        <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteResult('${r.id || r.schedule_key}')">حذف النتيجة</button>
+    </div>`).join('');
+}
+
+function renderVisibilityControls() {
+    const box = document.getElementById('visibilityControls');
+    const visibility = adminData.visibility || {};
+    box.innerHTML = Object.keys(VISIBILITY_LABELS).map(key => `
+        <label class="check-line">
+            <span>${VISIBILITY_LABELS[key]}</span>
+            <input type="checkbox" id="vis_${key}" ${visibility[key] !== false ? 'checked' : ''}>
+        </label>
+    `).join('');
 }
 
 async function saveGroup(event) {
     event.preventDefault();
-    const btn = document.getElementById('saveGroupBtn');
-    btn.disabled = true;
-
-    const payload = {
-        sport: document.getElementById('groupSport').value,
-        version: document.getElementById('groupVersion').value,
-        group: document.getElementById('groupName').value.trim(),
-        teams: document.getElementById('teamsText').value.split('\n').map(x => x.trim()).filter(Boolean),
-    };
-
     try {
-        const res = await fetch('/admin/group', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
+        const teams = document.getElementById('groupTeams').value.split('\n').map(t => t.trim()).filter(Boolean);
+        const payload = {
+            sport: document.getElementById('groupSport').value,
+            version: document.getElementById('groupVersion').value,
+            group: document.getElementById('groupName').value.trim(),
+            teams
+        };
+        const res = await apiJson('/admin/group', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
         });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.detail || 'فشل حفظ المجموعة');
-        showStatus('groupStatus', 'success', `✅ ${result.message}`);
-        await loadAdminData();
-    } catch (e) {
-        showStatus('groupStatus', 'error', `❌ ${e.message}`);
-    } finally {
-        btn.disabled = false;
-    }
+        setStatus('groupStatus', res.message || 'تم الحفظ');
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { setStatus('groupStatus', e.message, false); }
 }
 
-async function refreshMatchOptions() {
+async function deleteGroup(sport, version, group) {
+    if (!confirm('متأكد من حذف المجموعة؟')) return;
+    try {
+        await apiJson(`/admin/group?sport=${encodeURIComponent(sport)}&version=${encodeURIComponent(version)}&group=${encodeURIComponent(group)}`, {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
+}
+
+function loadGroupsForResult() {
+    if (!adminData) return;
     const sport = document.getElementById('resultSport').value;
     const version = document.getElementById('resultVersion').value;
-    const group = document.getElementById('resultGroup').value;
-    const params = new URLSearchParams({sport, version, only_unplayed: 'true'});
-    if (group) params.set('group', group);
-
-    const res = await fetch(`/admin/matches?${params.toString()}`);
-    currentMatches = await res.json();
-
-    const select = document.getElementById('matchSelect');
-    if (currentMatches.length === 0) {
-        select.innerHTML = '<option value="">مفيش ماتشات متاحة للتسجيل</option>';
-        selectedMatch = null;
-        updateMatchPreview();
-        return;
-    }
-
-    select.innerHTML = currentMatches.map(m => {
-        const label = `${m.sport_label} | ${m.version_label} | مجموعة ${m.group} | ${m.team1} ضد ${m.team2}`;
-        return `<option value="${m.id}">${escapeHtml(label)}</option>`;
-    }).join('');
-    updateMatchPreview();
+    const select = document.getElementById('resultGroup');
+    const groups = (((adminData.groups || {})[sport] || {})[version]) || {};
+    select.innerHTML = Object.keys(groups).map(g => `<option value="${escapeAttr(g)}">${g}</option>`).join('');
+    if (!select.innerHTML) select.innerHTML = '<option value="">لا توجد مجموعات</option>';
 }
 
-function updateMatchPreview() {
-    const matchId = document.getElementById('matchSelect').value;
-    selectedMatch = currentMatches.find(m => m.id === matchId) || null;
-    const preview = document.getElementById('matchPreview');
-    const resultBtn = document.getElementById('saveResultBtn');
-
-    if (!selectedMatch) {
-        preview.className = 'match-preview muted';
-        preview.innerText = 'مفيش ماتشات متاحة للتسجيل حاليًا';
-        document.getElementById('score1Label').innerText = 'نتيجة الفريق الأول';
-        document.getElementById('score2Label').innerText = 'نتيجة الفريق الثاني';
-        resultBtn.disabled = true;
-        return;
+async function loadAvailableMatches() {
+    if (!adminData) return;
+    const day = document.getElementById('resultDay').value;
+    const sport = document.getElementById('resultSport').value;
+    const select = document.getElementById('resultMatch');
+    select.innerHTML = '<option>جاري التحميل...</option>';
+    try {
+        availableMatches = await apiJson(`/admin/available-schedule-matches?day_name=${encodeURIComponent(day)}&sport=${encodeURIComponent(sport)}`);
+        if (!availableMatches.length) {
+            select.innerHTML = '<option value="">لا توجد ماتشات متاحة أو كلها اتسجلت</option>';
+            selectedMatch = null;
+            return;
+        }
+        select.innerHTML = availableMatches.map((m, i) => `<option value="${i}">${escapeHtml(m.label)}</option>`).join('');
+        fillMatchData();
+    } catch(e) {
+        select.innerHTML = '<option value="">فشل تحميل الماتشات</option>';
+        setStatus('resultStatus', e.message, false);
     }
+}
 
-    preview.className = 'match-preview';
-    preview.innerHTML = `
-        <span class="pill">${escapeHtml(selectedMatch.sport_label)}</span>
-        <span class="pill">${escapeHtml(selectedMatch.version_label)}</span>
-        <span class="pill">المجموعة ${escapeHtml(selectedMatch.group)}</span>
-        <br><br>
-        ${escapeHtml(selectedMatch.team1)} <span class="muted">ضد</span> ${escapeHtml(selectedMatch.team2)}
-    `;
-    document.getElementById('score1Label').innerText = `نتيجة ${selectedMatch.team1}`;
-    document.getElementById('score2Label').innerText = `نتيجة ${selectedMatch.team2}`;
-    resultBtn.disabled = false;
+function fillMatchData() {
+    const idx = document.getElementById('resultMatch').value;
+    selectedMatch = availableMatches[idx] || null;
+    if (!selectedMatch) return;
+    document.getElementById('team1').value = selectedMatch.team1 || '';
+    document.getElementById('team2').value = selectedMatch.team2 || '';
+    if (selectedMatch.version) {
+        document.getElementById('resultVersion').value = selectedMatch.version;
+        loadGroupsForResult();
+    }
+    if (selectedMatch.group) document.getElementById('resultGroup').value = selectedMatch.group;
 }
 
 async function saveResult(event) {
     event.preventDefault();
-    if (!selectedMatch) return;
-
-    const btn = document.getElementById('saveResultBtn');
-    btn.disabled = true;
-
+    if (!selectedMatch) {
+        setStatus('resultStatus', 'اختار ماتش الأول', false);
+        return;
+    }
     const payload = {
-        match_id: selectedMatch.id,
+        schedule_key: selectedMatch.schedule_key,
+        day_name: document.getElementById('resultDay').value,
+        sport: document.getElementById('resultSport').value,
+        version: document.getElementById('resultVersion').value,
+        group: document.getElementById('resultGroup').value,
+        team1: document.getElementById('team1').value.trim(),
+        team2: document.getElementById('team2').value.trim(),
         score1: Number(document.getElementById('score1').value),
         score2: Number(document.getElementById('score2').value),
-        notify: document.getElementById('notifyResult').checked,
+        match_time: selectedMatch.match_time || '',
+        match_text: selectedMatch.match_text || '',
+        notify: document.getElementById('notifyResult').checked
     };
-
     try {
-        const res = await fetch('/admin/result', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
+        const res = await apiJson('/admin/result', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
         });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.detail || 'فشل حفظ النتيجة');
-
-        showStatus('resultStatus', 'success', `✅ ${result.message}${payload.notify ? ` | إشعارات: ${result.sent_to}` : ''}`);
+        setStatus('resultStatus', res.message || 'تم حفظ النتيجة');
         document.getElementById('score1').value = 0;
         document.getElementById('score2').value = 0;
-        await loadAdminData();
-    } catch (e) {
-        showStatus('resultStatus', 'error', `❌ ${e.message}`);
-    } finally {
-        btn.disabled = false;
-    }
+        adminData = await apiJson('/admin-data');
+        renderRecentResults();
+        await loadAvailableMatches();
+    } catch(e) { setStatus('resultStatus', e.message, false); }
 }
 
-function renderGroupsList() {
-    const container = document.getElementById('groupsList');
-    const rows = [];
-    for (const sport of SPORTS.map(s => s.name)) {
-        for (const version of ["1", "2"]) {
-            const groups = adminData?.groups?.[sport]?.[version] || {};
-            for (const group of Object.keys(groups).sort()) {
-                const teams = groups[group] || [];
-                const matchCount = teams.length >= 2 ? (teams.length * (teams.length - 1)) / 2 : 0;
-                rows.push({sport, version, group, teams, matchCount});
-            }
-        }
-    }
-
-    if (rows.length === 0) {
-        container.innerHTML = '<div class="status info">لسه مفيش مجموعات. ضيف أول مجموعة من الفورم فوق.</div>';
-        return;
-    }
-
-    container.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>اللعبة</th>
-                    <th>التاب</th>
-                    <th>المجموعة</th>
-                    <th>الفرق</th>
-                    <th>الماتشات المتولدة</th>
-                    <th>تحكم</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${rows.map(r => `
-                    <tr>
-                        <td>${escapeHtml(labelForSport(r.sport))}</td>
-                        <td>${escapeHtml(getVersionLabel(r.version))}</td>
-                        <td><strong>${escapeHtml(r.group)}</strong></td>
-                        <td>${escapeHtml(r.teams.join('، '))}</td>
-                        <td>${r.matchCount}</td>
-                        <td>
-                            <button class="btn btn-primary btn-small" onclick='editGroup(${JSON.stringify(r).replace(/'/g, "&#39;")})'>تعديل</button>
-                            <button class="btn btn-danger btn-small" onclick='deleteGroup(${JSON.stringify(r.sport)}, ${JSON.stringify(r.version)}, ${JSON.stringify(r.group)})'>حذف</button>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-}
-
-function editGroup(row) {
-    document.getElementById('groupSport').value = row.sport;
-    document.getElementById('groupVersion').value = row.version;
-    document.getElementById('groupName').value = row.group;
-    document.getElementById('teamsText').value = row.teams.join('\n');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    showStatus('groupStatus', 'info', 'عدّل البيانات واضغط حفظ المجموعة.');
-}
-
-async function deleteGroup(sport, version, group) {
-    if (!confirm(`متأكد إنك عايز تحذف مجموعة ${group}؟ النتائج الخاصة بها هتتحذف.`)) return;
-    const params = new URLSearchParams({sport, version, group});
+async function deleteResult(id) {
+    if (!confirm('متأكد من حذف النتيجة؟ الماتش هيرجع متاح للتسجيل.')) return;
     try {
-        const res = await fetch(`/admin/group?${params.toString()}`, { method: 'DELETE' });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.detail || 'فشل حذف المجموعة');
-        showStatus('groupStatus', 'success', `✅ ${result.message}`);
-        await loadAdminData();
-    } catch (e) {
-        showStatus('groupStatus', 'error', `❌ ${e.message}`);
-    }
+        await apiJson(`/admin/result/${encodeURIComponent(id)}`, {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderRecentResults();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
 }
 
-function renderResultsList() {
-    const container = document.getElementById('resultsList');
-    const played = (adminData?.matches || []).filter(m => m.played);
-
-    if (played.length === 0) {
-        container.innerHTML = '<div class="status info">لسه مفيش نتائج مسجلة.</div>';
-        return;
-    }
-
-    container.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>اللعبة</th>
-                    <th>التاب</th>
-                    <th>المجموعة</th>
-                    <th>الماتش</th>
-                    <th>النتيجة</th>
-                    <th>تحكم</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${played.map(m => `
-                    <tr>
-                        <td>${escapeHtml(m.sport_label)}</td>
-                        <td>${escapeHtml(m.version_label)}</td>
-                        <td>${escapeHtml(m.group)}</td>
-                        <td>${escapeHtml(m.team1)} ضد ${escapeHtml(m.team2)}</td>
-                        <td><strong>${m.score1} - ${m.score2}</strong></td>
-                        <td><button class="btn btn-danger btn-small" onclick="deleteResult('${m.id}')">مسح النتيجة</button></td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
+async function loadFinals() {
+    if (!adminData) return;
+    const sport = document.getElementById('finalSport').value;
+    const data = await apiJson(`/finals/${encodeURIComponent(sport)}`);
+    document.getElementById('semi1Team1').value = data.semi1?.team1 || '';
+    document.getElementById('semi1Score1').value = data.semi1?.score1 || '-';
+    document.getElementById('semi1Team2').value = data.semi1?.team2 || '';
+    document.getElementById('semi1Score2').value = data.semi1?.score2 || '-';
+    document.getElementById('semi2Team1').value = data.semi2?.team1 || '';
+    document.getElementById('semi2Score1').value = data.semi2?.score1 || '-';
+    document.getElementById('semi2Team2').value = data.semi2?.team2 || '';
+    document.getElementById('semi2Score2').value = data.semi2?.score2 || '-';
+    document.getElementById('finalTeam1').value = data.final?.team1 || '';
+    document.getElementById('finalScore1').value = data.final?.score1 || '-';
+    document.getElementById('finalTeam2').value = data.final?.team2 || '';
+    document.getElementById('finalScore2').value = data.final?.score2 || '-';
 }
 
-async function deleteResult(matchId) {
-    if (!confirm('متأكد إنك عايز تمسح النتيجة؟ الماتش هيرجع لقائمة التسجيل.')) return;
+async function saveFinals() {
+    const payload = {
+        sport: document.getElementById('finalSport').value,
+        semi1: {team1: semi1Team1.value, score1: semi1Score1.value || '-', team2: semi1Team2.value, score2: semi1Score2.value || '-'},
+        semi2: {team1: semi2Team1.value, score1: semi2Score1.value || '-', team2: semi2Team2.value, score2: semi2Score2.value || '-'},
+        final: {team1: finalTeam1.value, score1: finalScore1.value || '-', team2: finalTeam2.value, score2: finalScore2.value || '-'}
+    };
     try {
-        const res = await fetch(`/admin/result/${matchId}`, { method: 'DELETE' });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.detail || 'فشل مسح النتيجة');
-        showStatus('resultStatus', 'success', `✅ ${result.message}`);
-        await loadAdminData();
-    } catch (e) {
-        showStatus('resultStatus', 'error', `❌ ${e.message}`);
-    }
+        const res = await apiJson('/admin/finals', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        setStatus('finalsStatus', res.message || 'تم حفظ النهائيات');
+    } catch(e) { setStatus('finalsStatus', e.message, false); }
+}
+
+async function saveVisibility() {
+    const visibility = {};
+    for (const key of Object.keys(VISIBILITY_LABELS)) visibility[key] = document.getElementById(`vis_${key}`).checked;
+    try {
+        const res = await apiJson('/admin/visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({visibility})});
+        setStatus('visibilityStatus', res.message || 'تم الحفظ');
+    } catch(e) { setStatus('visibilityStatus', e.message, false); }
 }
 
 async function sendPushNotification(event) {
     event.preventDefault();
-    const titleInput = document.getElementById('title');
-    const bodyInput = document.getElementById('body');
-    const submitBtn = document.getElementById('submitBtn');
-
-    submitBtn.disabled = true;
+    const btn = document.getElementById('pushBtn');
+    btn.disabled = true;
+    btn.innerText = 'جاري الإرسال...';
     try {
-        const response = await fetch('/send-notification', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ title: titleInput.value, body: bodyInput.value })
+        const res = await apiJson('/send-notification', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ title: pushTitle.value, body: pushBody.value })
         });
-        const result = await response.json();
-        if (!response.ok || result.status !== 'success') throw new Error('فشل إرسال الإشعار');
-        showStatus('notificationStatus', 'success', `✅ تم إرسال الإشعار إلى ${result.sent_to} مستخدم.`);
-        titleInput.value = '';
-        bodyInput.value = '';
-    } catch (e) {
-        showStatus('notificationStatus', 'error', '❌ حدث خطأ أثناء الاتصال بالسيرفر.');
-    } finally {
-        submitBtn.disabled = false;
-    }
-}
-
-function labelForSport(sport) {
-    return SPORTS.find(s => s.name === sport)?.label || sport;
+        setStatus('pushStatus', `✅ تم إرسال الإشعار إلى ${res.sent_to} مستخدم نشط`);
+        pushTitle.value = '';
+        pushBody.value = '';
+    } catch(e) { setStatus('pushStatus', e.message, false); }
+    finally { btn.disabled = false; btn.innerText = 'إرسال الإشعار فوراً 🚀'; }
 }
 
 function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
+function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 
-function escapeAttr(value) {
-    return escapeHtml(value).replace(/`/g, '&#96;');
-}
-
-window.addEventListener('load', async () => {
-    fillSportSelects();
-    await loadAdminData();
+window.addEventListener('load', () => {
+    loadAdminData().catch(err => alert(err.message));
 });
 </script>
 </body>
