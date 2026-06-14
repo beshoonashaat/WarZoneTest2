@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+requests
+pydantic
+pywebpush
+cryptography
+python-multipart
