@@ -224,7 +224,7 @@
     unicode-bidi: isolate;
     text-align: center;
 }
-
+}
 
 .matches-matrix tr:hover td {
     background-color: #f0f9ff; /* تأثير عند تمرير الماوس */
@@ -630,10 +630,10 @@ img {
     
 
 <div id="sports-nav" class="sports-container">
-    <div class="sport-card active" data-sport="Football" onclick="loadStandings('Football', this)">Football ⚽</div>
-    <div class="sport-card" data-sport="Dodgeball" onclick="loadStandings('Dodgeball', this)">Dodgeball 🤾🏻</div>
-    <div class="sport-card" data-sport="Volleyball" onclick="loadStandings('Volleyball', this)">Volleyball 🏐</div>
-    <div class="sport-card" data-sport="Ultimate Ball" onclick="loadStandings('Ultimate Ball', this)">Ultimate Ball 🥏</div>
+    <div class="sport-card active" data-sport="Football" onclick="loadSportFromCard('Football', this)">Football ⚽</div>
+    <div class="sport-card" data-sport="Dodgeball" onclick="loadSportFromCard('Dodgeball', this)">Dodgeball 🤾🏻</div>
+    <div class="sport-card" data-sport="Volleyball" onclick="loadSportFromCard('Volleyball', this)">Volleyball 🏐</div>
+    <div class="sport-card" data-sport="Ultimate Ball" onclick="loadSportFromCard('Ultimate Ball', this)">Ultimate Ball 🥏</div>
 </div>
 
 <div id="notification-banner" style="display:none; position: fixed; bottom: 20px; left: 20px; right: 20px; background: #1e3a8a; color: white; padding: 15px; border-radius: 12px; z-index: 9999; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; border: 1px solid #38bdf8;">
@@ -658,6 +658,7 @@ const VAPID_PUBLIC_KEY = "BNzit0AtKjV98NKB0QTVt8wpzvpEmxpmCq6PGIbxafoJUwjy7oODmF
 let isVersion2 = false;
 let isFinalsMode = false;
 let currentView = 'groups';
+let currentResultDay = 'Day1';
 let siteVisibility = {
     groups: true,
     groups2: true,
@@ -903,36 +904,52 @@ async function loadMatches(dayName) {
     }
 }
 
-async function loadDayResults(dayName) {
+function loadSportFromCard(sportName, element) {
+    if (currentView === 'results_day1') return loadDayResults('Day1', sportName, element);
+    if (currentView === 'results_day2') return loadDayResults('Day2', sportName, element);
+    return loadStandings(sportName, element);
+}
+
+async function loadDayResults(dayName, sportName = 'Football', element = null) {
     currentView = dayName === 'Day1' ? 'results_day1' : 'results_day2';
+    currentResultDay = dayName;
     isFinalsMode = false;
-    document.getElementById('sports-nav').style.display = 'none';
+
+    document.getElementById('sports-nav').style.display = 'grid';
+    document.querySelectorAll('.sport-card').forEach(card => card.classList.remove('active'));
+    if (element) element.classList.add('active');
+    else {
+        const card = document.querySelector(`.sport-card[data-sport="${sportName}"]`);
+        if (card) card.classList.add('active');
+    }
+
     const container = document.getElementById('groups-container');
     const title = document.getElementById('current-sport-title');
-    title.innerText = (dayName === 'Day1') ? "نتايج اليوم الأول" : "نتايج اليوم الثاني";
+    const dayLabel = dayName === 'Day1' ? 'اليوم الأول' : 'اليوم الثاني';
+    title.innerText = `نتايج ${dayLabel}: ${sportName}`;
     container.innerHTML = "<p style='text-align:center; padding:20px;'>جاري تحميل النتائج...</p>";
 
     try {
-        const results = await fetchJson(`/day-results/${dayName}`);
+        const results = await fetchJson(`/day-results/${dayName}?sport=${encodeURIComponent(sportName)}`);
         if (!results.length) {
-            container.innerHTML = "<p style='text-align:center; padding:20px;'>لسه مفيش نتائج متسجلة لليوم ده.</p>";
+            container.innerHTML = `<p style='text-align:center; padding:20px;'>لسه مفيش نتائج متسجلة في ${sportName} لحد دلوقتي.</p>`;
             return;
         }
-        let html = `<div class="table-container"><table class="matches-matrix" id="resultsTable"><thead><tr>
-            <th>التوقيت</th><th>اللعبة</th><th>التاب</th><th>المجموعة</th><th>الفريق الأول</th><th>النتيجة</th><th>الفريق الثاني</th>
-        </tr></thead><tbody>`;
+        let html = `<div class="group-container">
+            <h3 class="group-title">${escapeHtml(sportName)}</h3>
+            <div class="table-container"><table class="matches-matrix" id="resultsTable"><thead><tr>
+                <th>التوقيت</th><th>المجموعة</th><th>الفريق الأول</th><th>النتيجة</th><th>الفريق الثاني</th>
+            </tr></thead><tbody>`;
         results.forEach(r => {
             html += `<tr>
                 <td class="time-column" dir="ltr"><strong>${escapeHtml(r.match_time || '-')}</strong></td>
-                <td>${escapeHtml(r.sport_label || r.sport)}</td>
-                <td>${escapeHtml(r.version_label || r.version)}</td>
                 <td>${escapeHtml(r.group || '-')}</td>
                 <td>${escapeHtml(r.team1)}</td>
                 <td style="font-weight:bold; color: var(--secondary);">${escapeHtml(r.score1)} - ${escapeHtml(r.score2)}</td>
                 <td>${escapeHtml(r.team2)}</td>
             </tr>`;
         });
-        html += `</tbody></table></div>`;
+        html += `</tbody></table></div></div>`;
         container.innerHTML = html;
     } catch(e) {
         container.innerHTML = "<p style='color:red; text-align:center;'>فشل تحميل النتائج.</p>";
@@ -962,8 +979,8 @@ setInterval(() => {
     else if (currentView === 'finals') renderBracket(sport);
     else if (currentView === 'matches_day1') loadMatches('Day1');
     else if (currentView === 'matches_day2') loadMatches('Day2');
-    else if (currentView === 'results_day1') loadDayResults('Day1');
-    else if (currentView === 'results_day2') loadDayResults('Day2');
+    else if (currentView === 'results_day1') loadDayResults('Day1', sport, activeCard);
+    else if (currentView === 'results_day2') loadDayResults('Day2', sport, activeCard);
 }, 30000);
 
 function escapeHtml(value) {
