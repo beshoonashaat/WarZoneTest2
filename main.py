@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body, HTTPException, Query
+from fastapi import FastAPI, Body, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -67,6 +67,22 @@ VAPID_PUBLIC_KEY = "BNzit0AtKjV98NKB0QTVt8wpzvpEmxpmCq6PGIbxafoJUwjy7oODmFKoMSjN
 VAPID_PRIVATE_KEY = "EovBlK04jq_suYT2t2ULH-gmM_d6smFSoTihYi9roPs"
 VAPID_CLAIMS = {"sub": "mailto:admin@warzone.com"}
 subscribers = set()
+
+# =========================
+# Admin Login
+# =========================
+ADMIN_PASSWORD = "BeshooWarZone"
+ADMIN_COOKIE_NAME = "warzone_admin_auth"
+ADMIN_TOKEN = hashlib.sha256(f"warzone-admin:{ADMIN_PASSWORD}".encode("utf-8")).hexdigest()
+
+
+class LoginPayload(BaseModel):
+    password: str
+
+
+def require_admin(request: Request) -> None:
+    if request.cookies.get(ADMIN_COOKIE_NAME) != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="محتاج تسجل دخول للأدمن")
 
 
 class NotificationPayload(BaseModel):
@@ -472,6 +488,30 @@ async def serve_sw():
 
 
 # =========================
+# Admin login routes
+# =========================
+@app.post("/admin/login")
+async def admin_login(payload: LoginPayload, response: Response):
+    if payload.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="كلمة السر غير صحيحة")
+    response.set_cookie(
+        key=ADMIN_COOKIE_NAME,
+        value=ADMIN_TOKEN,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=60 * 60 * 12,
+    )
+    return {"status": "success", "message": "تم تسجيل الدخول"}
+
+
+@app.post("/admin/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(ADMIN_COOKIE_NAME)
+    return {"status": "success", "message": "تم تسجيل الخروج"}
+
+
+# =========================
 # Notification routes
 # =========================
 @app.post("/subscribe")
@@ -481,7 +521,8 @@ async def subscribe(subscription: dict = Body(...)):
 
 
 @app.post("/send-notification")
-async def send_notification(payload: NotificationPayload):
+async def send_notification(payload: NotificationPayload, request: Request):
+    require_admin(request)
     sent_to = send_push_to_all(payload.title, payload.body)
     return {"status": "success", "sent_to": sent_to}
 
@@ -525,7 +566,8 @@ def get_site_settings():
 # Admin data routes
 # =========================
 @app.get("/admin-data")
-def get_admin_data():
+def get_admin_data(request: Request):
+    require_admin(request)
     data = load_data()
     return {
         "sports": SPORTS,
@@ -540,7 +582,8 @@ def get_admin_data():
 
 
 @app.post("/admin/group")
-def save_group(payload: GroupPayload):
+def save_group(payload: GroupPayload, request: Request):
+    require_admin(request)
     sport = payload.sport.strip()
     version = str(payload.version).strip()
     group = payload.group.strip()
@@ -569,7 +612,8 @@ def save_group(payload: GroupPayload):
 
 
 @app.delete("/admin/group")
-def delete_group(sport: str = Query(...), version: str = Query(...), group: str = Query(...)):
+def delete_group(request: Request, sport: str = Query(...), version: str = Query(...), group: str = Query(...)):
+    require_admin(request)
     data = load_data()
     if sport not in SPORTS or version not in ["1", "2"]:
         raise HTTPException(status_code=400, detail="بيانات غير صحيحة")
@@ -583,12 +627,14 @@ def delete_group(sport: str = Query(...), version: str = Query(...), group: str 
 
 
 @app.get("/admin/available-schedule-matches")
-def available_schedule_matches(day_name: str = "Day1", sport: str = "Football"):
+def available_schedule_matches(request: Request, day_name: str = "Day1", sport: str = "Football"):
+    require_admin(request)
     return build_available_schedule_matches(day_name, sport)
 
 
 @app.post("/admin/result")
-def save_result(payload: ResultPayload):
+def save_result(payload: ResultPayload, request: Request):
+    require_admin(request)
     data = load_data()
     ensure_result_valid(data, payload)
     key = payload.schedule_key.strip()
@@ -636,7 +682,8 @@ def save_result(payload: ResultPayload):
 
 
 @app.delete("/admin/result/{result_id}")
-def delete_result(result_id: str):
+def delete_result(result_id: str, request: Request):
+    require_admin(request)
     data = load_data()
     if result_id not in data.get("results", {}):
         raise HTTPException(status_code=404, detail="النتيجة غير موجودة")
@@ -646,7 +693,8 @@ def delete_result(result_id: str):
 
 
 @app.post("/admin/finals")
-def save_finals(payload: FinalsPayload):
+def save_finals(payload: FinalsPayload, request: Request):
+    require_admin(request)
     sport = payload.sport.strip()
     if sport not in SPORTS:
         raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
@@ -664,7 +712,8 @@ def save_finals(payload: FinalsPayload):
 
 
 @app.post("/admin/visibility")
-def save_visibility(payload: VisibilityPayload):
+def save_visibility(payload: VisibilityPayload, request: Request):
+    require_admin(request)
     data = load_data()
     current = data.get("visibility", DEFAULT_VISIBILITY.copy())
     for key in DEFAULT_VISIBILITY:
