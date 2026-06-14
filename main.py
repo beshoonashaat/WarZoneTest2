@@ -402,9 +402,13 @@ def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[
     return standings
 
 
-def get_day_results_list(data: Dict[str, Any], day_name: str) -> List[Dict[str, Any]]:
+def get_day_results_list(data: Dict[str, Any], day_name: str, sport: Optional[str] = None) -> List[Dict[str, Any]]:
     rows = [r for r in data.get("results", {}).values() if r.get("day_name") == day_name]
-    rows.sort(key=lambda r: (str(r.get("match_time", "")), str(r.get("sport", "")), str(r.get("group", ""))))
+    if sport:
+        if sport not in SPORTS:
+            raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+        rows = [r for r in rows if r.get("sport") == sport]
+    rows.sort(key=lambda r: (str(r.get("sport", "")), str(r.get("match_time", "")), str(r.get("group", ""))))
     return rows
 
 
@@ -498,10 +502,10 @@ def get_matches(day_name: str):
 
 
 @app.get("/day-results/{day_name}")
-def get_day_results(day_name: str):
+def get_day_results(day_name: str, sport: Optional[str] = Query(None)):
     if day_name not in ["Day1", "Day2"]:
         raise HTTPException(status_code=404, detail="اليوم غير موجود")
-    return get_day_results_list(load_data(), day_name)
+    return get_day_results_list(load_data(), day_name, sport)
 
 
 @app.get("/finals/{sport_name}")
