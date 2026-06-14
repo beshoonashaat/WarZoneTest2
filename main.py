@@ -1,33 +1,23 @@
-import pandas as pd
-import requests
-from io import StringIO
-from fastapi import FastAPI, Body, HTTPException
-import asyncio
+from fastapi import FastAPI, Body, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
-import json  # 👈 مهم جداً لعمليات الـ JSON
-import os
-from copy import deepcopy
-from pywebpush import webpush, WebPushException # 👈 المكتبة اللي بتبعت الإشعارات
+from pydantic import BaseModel
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from itertools import combinations
+from datetime import datetime
+import hashlib
+import json
 
-# 1. تعريف موديلات البيانات
-class NotificationPayload(BaseModel):
-    title: str
-    body: str
+try:
+    from pywebpush import webpush, WebPushException
+except Exception:
+    webpush = None
+    class WebPushException(Exception):
+        response = None
 
-class MatchResultPayload(BaseModel):
-    sport_name: str
-    group_name: str
-    team1: str
-    team2: str
-    score1: int = Field(..., ge=0)
-    score2: int = Field(..., ge=0)
-    send_push: bool = True
+app = FastAPI(title="War Zone Control")
 
-app = FastAPI()
-
-# 2. إعدادات الـ CORS والـ VAPID
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,386 +25,478 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# =========================
+# ثابت الألعاب والملفات
+# =========================
+SPORTS = ["Football", "Dodgeball", "Volleyball", "Ultimate Ball"]
+SPORT_LABELS = {
+    "Football": "Football ⚽",
+    "Dodgeball": "Dodgeball 🤾🏻",
+    "Volleyball": "Volleyball 🏐",
+    "Ultimate Ball": "Ultimate Ball 🥏",
+}
+VERSION_LABELS = {
+    "1": "المجموعات",
+    "2": "المجموعات 2",
+}
+
+DATA_FILE = Path("warzone_data.json")
+
+# =========================
+# Push Notifications
+# =========================
 VAPID_PUBLIC_KEY = "BNzit0AtKjV98NKB0QTVt8wpzvpEmxpmCq6PGIbxafoJUwjy7oODmFKoMSjNykAu6vp2ZHXhD4xeLunAD5AkIdo"
 VAPID_PRIVATE_KEY = "EovBlK04jq_suYT2t2ULH-gmM_d6smFSoTihYi9roPs"
 VAPID_CLAIMS = {"sub": "mailto:admin@warzone.com"}
-
-# 3. مخزن المشتركين (لازم يتعرف هنا عشان السيرفر يشوفه)
 subscribers = set()
 
-RESULTS_FILE = "match_results.json"
 
-# --- أدوات مساعدة للنتائج والترتيب ---
+class NotificationPayload(BaseModel):
+    title: str
+    body: str
 
-def normalize_text(value):
-    return " ".join(str(value or "").strip().split()).casefold()
 
-def get_team_name(row):
-    # بعض شيتات Google Sheets بتطلع اسم الفريق في عمود واضح،
-    # وبعضها بيطلع في عمود بدون اسم بسبب دمج خلايا/تنسيق الجدول.
-    # عشان كده بنجرب الأعمدة المعروفة ثم fallback بنفس منطق index.html القديم: v[9].
-    preferred_columns = [
-        "الفريق", "اسم الفريق", "Team", "team", "Team Name", "team_name",
-        "الفريق الأول", "الفريق الثاني"
-    ]
+class GroupPayload(BaseModel):
+    sport: str
+    version: str
+    group: str
+    teams: List[str]
 
-    for col in preferred_columns:
-        if col in row and str(row.get(col, "")).strip():
-            return str(row.get(col, "")).strip()
 
-    values = list(row.values())
-    if len(values) > 9 and str(values[9]).strip():
-        return str(values[9]).strip()
+class ResultPayload(BaseModel):
+    match_id: str
+    score1: int
+    score2: int
+    notify: bool = False
 
-    excluded_columns = {
-        "المجموعة", "group", "Group", "م", "المركز", "rank", "Rank",
-        "لعب", "فوز", "تعادل", "خسارة", "نقاط", "النقاط",
-        "له", "عليه", "فرق", "فارق", "فرق الأهداف",
-        "Played", "Wins", "Draws", "Losses", "Points", "GF", "GA", "GD"
+
+# =========================
+# Data helpers
+# =========================
+def blank_data() -> Dict[str, Any]:
+    return {
+        "groups": {sport: {"1": {}, "2": {}} for sport in SPORTS},
+        "results": {},
     }
 
-    for col, value in row.items():
-        if col in excluded_columns:
-            continue
-        text = str(value or "").strip()
-        if text and text.lower() != "nan":
-            return text
 
-    return ""
+def load_data() -> Dict[str, Any]:
+    if not DATA_FILE.exists():
+        data = blank_data()
+        save_data(data)
+        return data
 
-def to_int(value):
     try:
-        if value == "":
-            return 0
-        return int(float(value))
+        with DATA_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
     except Exception:
+        data = blank_data()
+
+    # migrations / safety
+    data.setdefault("groups", {})
+    data.setdefault("results", {})
+    for sport in SPORTS:
+        data["groups"].setdefault(sport, {})
+        data["groups"][sport].setdefault("1", {})
+        data["groups"][sport].setdefault("2", {})
+    return data
+
+
+def save_data(data: Dict[str, Any]) -> None:
+    with DATA_FILE.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def normalize_sport_and_version(sport_name: str) -> tuple[str, str]:
+    """Supports /standings/Football and /standings/Football2."""
+    sport_name = sport_name.strip()
+    if sport_name.endswith("2"):
+        maybe_sport = sport_name[:-1]
+        if maybe_sport in SPORTS:
+            return maybe_sport, "2"
+    if sport_name in SPORTS:
+        return sport_name, "1"
+    raise HTTPException(status_code=404, detail="Sport not found")
+
+
+def clean_team_name(name: str) -> str:
+    return str(name).strip()
+
+
+def make_match_id(sport: str, version: str, group: str, team1: str, team2: str) -> str:
+    raw = f"{sport}|{version}|{group}|{team1}|{team2}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def generate_matches(
+    data: Dict[str, Any],
+    sport_filter: Optional[str] = None,
+    version_filter: Optional[str] = None,
+    group_filter: Optional[str] = None,
+    only_unplayed: bool = False,
+) -> List[Dict[str, Any]]:
+    results = data.get("results", {})
+    matches: List[Dict[str, Any]] = []
+
+    for sport in SPORTS:
+        if sport_filter and sport != sport_filter:
+            continue
+        for version in ["1", "2"]:
+            if version_filter and version != str(version_filter):
+                continue
+            groups = data["groups"].get(sport, {}).get(version, {})
+            for group_name in sorted(groups.keys()):
+                if group_filter and group_name != group_filter:
+                    continue
+                teams = [clean_team_name(t) for t in groups[group_name] if clean_team_name(t)]
+                for team1, team2 in combinations(teams, 2):
+                    match_id = make_match_id(sport, version, group_name, team1, team2)
+                    result = results.get(match_id)
+                    played = result is not None
+                    if only_unplayed and played:
+                        continue
+                    match = {
+                        "id": match_id,
+                        "sport": sport,
+                        "sport_label": SPORT_LABELS.get(sport, sport),
+                        "version": version,
+                        "version_label": VERSION_LABELS.get(version, version),
+                        "group": group_name,
+                        "team1": team1,
+                        "team2": team2,
+                        "played": played,
+                        "score1": None,
+                        "score2": None,
+                        "status": "تم اللعب" if played else "لم تُلعب",
+                    }
+                    if result:
+                        match["score1"] = result.get("score1")
+                        match["score2"] = result.get("score2")
+                        match["played_at"] = result.get("played_at")
+                    matches.append(match)
+    return matches
+
+
+def cleanup_orphan_results(data: Dict[str, Any]) -> None:
+    valid_ids = {m["id"] for m in generate_matches(data)}
+    data["results"] = {
+        match_id: result
+        for match_id, result in data.get("results", {}).items()
+        if match_id in valid_ids
+    }
+
+
+def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[Dict[str, Any]]]:
+    groups = data["groups"].get(sport, {}).get(version, {})
+    all_matches = generate_matches(data, sport_filter=sport, version_filter=version)
+    result_by_id = data.get("results", {})
+    standings: Dict[str, List[Dict[str, Any]]] = {}
+
+    for group_name in sorted(groups.keys()):
+        teams = [clean_team_name(t) for t in groups[group_name] if clean_team_name(t)]
+        table: Dict[str, Dict[str, Any]] = {}
+        for team in teams:
+            table[team] = {
+                "الفريق": team,
+                "لعب": 0,
+                "فوز": 0,
+                "تعادل": 0,
+                "خسارة": 0,
+                "له": 0,
+                "عليه": 0,
+                "فرق": 0,
+                "نقاط": 0,
+            }
+
+        for match in all_matches:
+            if match["group"] != group_name:
+                continue
+            result = result_by_id.get(match["id"])
+            if not result:
+                continue
+
+            t1, t2 = match["team1"], match["team2"]
+            if t1 not in table or t2 not in table:
+                continue
+            s1, s2 = int(result["score1"]), int(result["score2"])
+
+            table[t1]["لعب"] += 1
+            table[t2]["لعب"] += 1
+            table[t1]["له"] += s1
+            table[t1]["عليه"] += s2
+            table[t2]["له"] += s2
+            table[t2]["عليه"] += s1
+
+            if s1 > s2:
+                table[t1]["فوز"] += 1
+                table[t2]["خسارة"] += 1
+                table[t1]["نقاط"] += 3
+            elif s2 > s1:
+                table[t2]["فوز"] += 1
+                table[t1]["خسارة"] += 1
+                table[t2]["نقاط"] += 3
+            else:
+                table[t1]["تعادل"] += 1
+                table[t2]["تعادل"] += 1
+                table[t1]["نقاط"] += 1
+                table[t2]["نقاط"] += 1
+
+        rows = []
+        for row in table.values():
+            row["فرق"] = row["له"] - row["عليه"]
+            rows.append(row)
+
+        rows.sort(key=lambda r: (-r["نقاط"], -r["فرق"], -r["له"], r["عليه"], r["الفريق"]))
+        standings[group_name] = rows
+
+    return standings
+
+
+def send_push_to_all(title: str, body: str) -> int:
+    if webpush is None:
+        print("pywebpush is not installed; notification skipped.")
         return 0
 
-def add_stat(row, column, amount):
-    row[column] = to_int(row.get(column, 0)) + amount
-
-def add_first_existing_stat(row, possible_columns, amount):
-    for col in possible_columns:
-        if col in row:
-            add_stat(row, col, amount)
-            return
-
-def get_points_column(row):
-    if "نقاط" in row:
-        return "نقاط"
-    if "النقاط" in row:
-        return "النقاط"
-    row["نقاط"] = 0
-    return "نقاط"
-
-def get_stat_value(row, possible_columns):
-    for col in possible_columns:
-        if col in row:
-            return to_int(row.get(col, 0))
-    return 0
-
-def make_match_key(sport_name, group_name, team1, team2):
-    teams = sorted([normalize_text(team1), normalize_text(team2)])
-    return f"{normalize_text(sport_name)}|{normalize_text(group_name)}|{teams[0]}|{teams[1]}"
-
-def load_match_results():
-    if not os.path.exists(RESULTS_FILE):
-        return {}
-    try:
-        with open(RESULTS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except Exception as e:
-        print(f"❌ Error loading {RESULTS_FILE}: {e}")
-        return {}
-
-def save_match_results():
-    with open(RESULTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(match_results, f, ensure_ascii=False, indent=2)
-
-def sort_standings_rows(rows):
-    def sort_key(row):
-        group_name = normalize_text(row.get("المجموعة", "A"))
-        points = get_stat_value(row, ["نقاط", "النقاط"])
-        goal_diff = get_stat_value(row, ["فرق", "فارق", "فرق الأهداف", "Goal Difference", "GD"])
-        wins = get_stat_value(row, ["فوز", "Wins", "W"])
-        goals_for = get_stat_value(row, ["له", "أهداف له", "اهداف له", "Goals For", "GF"])
-        return (group_name, -points, -goal_diff, -wins, -goals_for, normalize_text(get_team_name(row)))
-    return sorted(rows, key=sort_key)
-
-def apply_one_result(rows, result):
-    sport_name = result["sport_name"]
-    group_name = normalize_text(result["group_name"])
-    team1_name = normalize_text(result["team1"])
-    team2_name = normalize_text(result["team2"])
-    score1 = to_int(result["score1"])
-    score2 = to_int(result["score2"])
-
-    team1_row = None
-    team2_row = None
-
-    for row in rows:
-        row_group = normalize_text(row.get("المجموعة", "A"))
-        row_team = normalize_text(get_team_name(row))
-        if row_group != group_name:
-            continue
-        if row_team == team1_name:
-            team1_row = row
-        elif row_team == team2_name:
-            team2_row = row
-
-    if not team1_row or not team2_row:
-        available = [get_team_name(r) for r in rows if normalize_text(r.get("المجموعة", "A")) == group_name]
-        raise ValueError(
-            f"لم أجد الفريقين داخل {sport_name} / المجموعة {result['group_name']}. الفرق المتاحة: {available}"
-        )
-
-    # Played
-    add_stat(team1_row, "لعب", 1)
-    add_stat(team2_row, "لعب", 1)
-
-    # Optional score stats if your sheet has these columns
-    add_first_existing_stat(team1_row, ["له", "أهداف له", "اهداف له", "Goals For", "GF"], score1)
-    add_first_existing_stat(team1_row, ["عليه", "أهداف عليه", "اهداف عليه", "Goals Against", "GA"], score2)
-    add_first_existing_stat(team1_row, ["فرق", "فارق", "فرق الأهداف", "Goal Difference", "GD"], score1 - score2)
-
-    add_first_existing_stat(team2_row, ["له", "أهداف له", "اهداف له", "Goals For", "GF"], score2)
-    add_first_existing_stat(team2_row, ["عليه", "أهداف عليه", "اهداف عليه", "Goals Against", "GA"], score1)
-    add_first_existing_stat(team2_row, ["فرق", "فارق", "فرق الأهداف", "Goal Difference", "GD"], score2 - score1)
-
-    points_col_1 = get_points_column(team1_row)
-    points_col_2 = get_points_column(team2_row)
-
-    if score1 > score2:
-        add_stat(team1_row, "فوز", 1)
-        add_stat(team2_row, "خسارة", 1)
-        add_stat(team1_row, points_col_1, 3)
-    elif score2 > score1:
-        add_stat(team2_row, "فوز", 1)
-        add_stat(team1_row, "خسارة", 1)
-        add_stat(team2_row, points_col_2, 3)
-    else:
-        add_stat(team1_row, "تعادل", 1)
-        add_stat(team2_row, "تعادل", 1)
-        add_stat(team1_row, points_col_1, 1)
-        add_stat(team2_row, points_col_2, 1)
-
-def apply_saved_results_to_sport(sport_name):
-    base_rows = deepcopy(all_sports_base_data.get(sport_name, []))
-    if not base_rows:
-        all_sports_data[sport_name] = []
-        return
-
-    for result in match_results.values():
-        if result.get("sport_name") == sport_name:
-            try:
-                apply_one_result(base_rows, result)
-            except ValueError as e:
-                print(f"⚠️ Result skipped: {e}")
-
-    all_sports_data[sport_name] = sort_standings_rows(base_rows)
-
-def apply_saved_results_to_all_sports():
-    for sport_name in SHEET_URLS.keys():
-        apply_saved_results_to_sport(sport_name)
-
-async def push_to_subscribers(title, body):
-    message_data = json.dumps({"title": title, "body": body})
+    message_data = json.dumps({"title": title, "body": body}, ensure_ascii=False)
     inactive_subs = []
 
-    print(f"🚀 محاولة إرسال إشعار لـ {len(subscribers)} جهاز...")
-
-    for sub_str in subscribers:
+    for sub_str in list(subscribers):
         sub_data = json.loads(sub_str)
         try:
             webpush(
                 subscription_info=sub_data,
                 data=message_data,
                 vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims=VAPID_CLAIMS
+                vapid_claims=VAPID_CLAIMS,
             )
         except WebPushException as ex:
-            print(f"❌ خطأ في جهاز: {ex}")
             if ex.response and ex.response.status_code in [404, 410]:
                 inactive_subs.append(sub_str)
         except Exception as ex:
-            print(f"❌ خطأ غير متوقع: {ex}")
+            print(f"Push error: {ex}")
 
     for sub in inactive_subs:
-        subscribers.remove(sub)
+        subscribers.discard(sub)
 
     return len(subscribers)
 
-match_results = load_match_results()
 
-# --- المسارات الخاصة بالصفحات والإشعارات ---
+# =========================
+# Static pages
+# =========================
+@app.get("/")
+async def serve_home():
+    return FileResponse("index.html")
+
 
 @app.get("/admin")
 async def serve_admin():
     return FileResponse("admin.html")
 
+
 @app.get("/sw.js")
 async def serve_sw():
     return FileResponse("sw.js", media_type="application/javascript")
 
+
+# =========================
+# Notification routes
+# =========================
 @app.post("/subscribe")
 async def subscribe(subscription: dict = Body(...)):
-    subscribers.add(json.dumps(subscription))
-    print(f"✅ مشترك جديد انضم! إجمالي المشتركين: {len(subscribers)}")
-    return {"status": "success"}
+    subscribers.add(json.dumps(subscription, sort_keys=True))
+    return {"status": "success", "total": len(subscribers)}
+
 
 @app.post("/send-notification")
 async def send_notification(payload: NotificationPayload):
-    sent_to = await push_to_subscribers(payload.title, payload.body)
+    sent_to = send_push_to_all(payload.title, payload.body)
     return {"status": "success", "sent_to": sent_to}
 
-# --- كود مزامنة البيانات ---
 
-SHEET_URLS = {
-    "Football": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=621025358&single=true&output=csv",
-    "Dodgeball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=863642824&single=true&output=csv",
-    "Volleyball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1033302345&single=true&output=csv",
-    "Ultimate Ball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=2017169226&single=true&output=csv",
-    "Football2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=907297379&single=true&output=csv",
-    "Dodgeball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=402610111&single=true&output=csv",
-    "Volleyball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=42182221&single=true&output=csv",
-    "Ultimate Ball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1116838793&single=true&output=csv"
-}
-
-MATCHES_URLS = {
-    "Day1": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=186915705&single=true&output=csv",
-    "Day2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqzlySvoK19S0Maw_xLSlUMmGcOPx6eNqiwKJKCtrHwkDxKuO95ZJKbvyNcXns8TxRe1oYnhZRtlNs/pub?gid=1547895490&single=true&output=csv",
-}
-
-# base = البيانات الأصلية من Google Sheets، data = البيانات بعد تطبيق نتائج الأدمن
-all_sports_base_data = {k: [] for k in SHEET_URLS.keys()}
-all_sports_data = {k: [] for k in SHEET_URLS.keys()}
-all_matches_data = {k: [] for k in MATCHES_URLS.keys()}
-
-async def sync_all_data_loop():
-    while True:
-        loop = asyncio.get_event_loop()
-
-        # تحديث جداول الترتيب
-        for sport, url in SHEET_URLS.items():
-            try:
-                response = await loop.run_in_executor(None, requests.get, url)
-                if response.status_code == 200:
-                    response.encoding = 'utf-8'
-                    df = pd.read_csv(StringIO(response.text))
-                    df.columns = df.columns.str.strip()
-                    df = df.fillna("")
-
-                    all_sports_base_data[sport] = df.to_dict(orient='records')
-                    apply_saved_results_to_sport(sport)
-                    print(f"✅ Updated standings: {sport} ({len(all_sports_data[sport])} rows)")
-            except Exception as e:
-                print(f"❌ Error in standings {sport}: {e}")
-
-        # تحديث جداول الماتشات اليومية
-        for day, url in MATCHES_URLS.items():
-            try:
-                response = await loop.run_in_executor(None, requests.get, url)
-                if response.status_code == 200:
-                    response.encoding = 'utf-8'
-                    df = pd.read_csv(StringIO(response.text))
-                    df.columns = df.columns.str.strip()
-                    df = df.fillna("")
-
-                    all_matches_data[day] = df.to_dict(orient='records')
-                    print(f"✅ Updated matches: {day} ({len(all_matches_data[day])} rows)")
-                else:
-                    print(f"❌ Matches {day} returned status code: {response.status_code}")
-            except Exception as e:
-                print(f"❌ Error in matches {day}: {e}")
-
-        await asyncio.sleep(120)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(sync_all_data_loop())
-
-@app.get("/")
-async def serve_home():
-    return FileResponse("index.html")
-
+# =========================
+# Public data routes
+# =========================
 @app.get("/standings/{sport_name}")
 def get_standings(sport_name: str):
-    data = all_sports_data.get(sport_name, [])
-    groups = {}
-    for entry in data:
-        grp = str(entry.get('المجموعة', 'A')).strip() or "A"
-        if grp not in groups:
-            groups[grp] = []
-        groups[grp].append(entry)
-    return groups
+    data = load_data()
+    sport, version = normalize_sport_and_version(sport_name)
+    return calculate_standings(data, sport, version)
+
 
 @app.get("/matches/{day_name}")
 def get_matches(day_name: str):
-    return all_matches_data.get(day_name, [])
+    data = load_data()
+    version = "1" if day_name == "Day1" else "2"
+    return generate_matches(data, version_filter=version)
 
-@app.get("/teams/{sport_name}")
-def get_teams(sport_name: str):
-    data = all_sports_data.get(sport_name, [])
-    groups = {}
-    for entry in data:
-        grp = str(entry.get('المجموعة', 'A')).strip() or "A"
-        team = get_team_name(entry)
-        if team:
-            groups.setdefault(grp, []).append(team)
-    return groups
 
-@app.get("/results")
-def get_results():
-    return list(match_results.values())
+@app.get("/finals/{sport_name}")
+def get_finals(sport_name: str, version: str = "1"):
+    data = load_data()
+    sport, default_version = normalize_sport_and_version(sport_name)
+    version = version if version in ["1", "2"] else default_version
+    standings = calculate_standings(data, sport, version)
+    group_names = sorted(standings.keys())
 
-@app.post("/submit-result")
-async def submit_result(payload: MatchResultPayload):
-    sport_name = payload.sport_name.strip()
-    if sport_name not in SHEET_URLS:
-        raise HTTPException(status_code=400, detail="اسم اللعبة غير صحيح")
+    if len(group_names) < 2:
+        return {
+            "sport": sport,
+            "version": version,
+            "semi1": {"team1": "أول مجموعة A", "team2": "ثاني مجموعة B", "score1": "-", "score2": "-"},
+            "semi2": {"team1": "أول مجموعة B", "team2": "ثاني مجموعة A", "score1": "-", "score2": "-"},
+            "final": {"team1": "الفائز 1", "team2": "الفائز 2", "score1": "-", "score2": "-"},
+        }
 
-    if not all_sports_base_data.get(sport_name):
-        raise HTTPException(status_code=409, detail="بيانات اللعبة لم تتحمل من Google Sheets بعد. افتح الموقع وانتظر ثواني ثم جرب تاني.")
+    g1, g2 = group_names[0], group_names[1]
+    group1 = standings[g1]
+    group2 = standings[g2]
 
-    if normalize_text(payload.team1) == normalize_text(payload.team2):
-        raise HTTPException(status_code=400, detail="لا يمكن اختيار نفس الفريق مرتين")
+    def name(rows, index, placeholder):
+        return rows[index]["الفريق"] if len(rows) > index else placeholder
 
-    result = {
-        "sport_name": sport_name,
-        "group_name": payload.group_name.strip(),
-        "team1": payload.team1.strip(),
-        "team2": payload.team2.strip(),
-        "score1": payload.score1,
-        "score2": payload.score2,
+    return {
+        "sport": sport,
+        "version": version,
+        "semi1": {"team1": name(group1, 0, f"{g1}1"), "team2": name(group2, 1, f"{g2}2"), "score1": "-", "score2": "-"},
+        "semi2": {"team1": name(group2, 0, f"{g2}1"), "team2": name(group1, 1, f"{g1}2"), "score1": "-", "score2": "-"},
+        "final": {"team1": "الفائز 1", "team2": "الفائز 2", "score1": "-", "score2": "-"},
     }
 
-    # نجرب تطبيق النتيجة على نسخة مؤقتة الأول، عشان لو اسم فريق غلط ما نحفظش حاجة
-    test_rows = deepcopy(all_sports_base_data.get(sport_name, []))
-    for old_result in match_results.values():
-        if old_result.get("sport_name") == sport_name and make_match_key(old_result.get("sport_name"), old_result.get("group_name"), old_result.get("team1"), old_result.get("team2")) != make_match_key(result.get("sport_name"), result.get("group_name"), result.get("team1"), result.get("team2")):
-            try:
-                apply_one_result(test_rows, old_result)
-            except ValueError:
-                pass
-    try:
-        apply_one_result(test_rows, result)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
 
-    key = make_match_key(result.get("sport_name"), result.get("group_name"), result.get("team1"), result.get("team2"))
-    match_results[key] = result
-    save_match_results()
-    apply_saved_results_to_sport(sport_name)
+# =========================
+# Admin data routes
+# =========================
+@app.get("/admin-data")
+def get_admin_data():
+    data = load_data()
+    return {
+        "sports": SPORTS,
+        "sport_labels": SPORT_LABELS,
+        "version_labels": VERSION_LABELS,
+        "groups": data["groups"],
+        "matches": generate_matches(data),
+        "results": data.get("results", {}),
+    }
 
-    if payload.send_push:
-        title = "نتيجة ماتش جديدة 🏆"
-        body = f"{payload.team1} {payload.score1} - {payload.score2} {payload.team2} | {sport_name}"
-        await push_to_subscribers(title, body)
+
+@app.post("/admin/group")
+def save_group(payload: GroupPayload):
+    sport = payload.sport.strip()
+    version = str(payload.version).strip()
+    group = payload.group.strip()
+
+    if sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    if version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="التاب غير صحيح")
+    if not group:
+        raise HTTPException(status_code=400, detail="اسم المجموعة مطلوب")
+
+    teams = []
+    seen = set()
+    for team in payload.teams:
+        clean = clean_team_name(team)
+        if clean and clean not in seen:
+            teams.append(clean)
+            seen.add(clean)
+
+    if len(teams) < 2:
+        raise HTTPException(status_code=400, detail="لازم تضيف فريقين على الأقل")
+
+    data = load_data()
+    data["groups"][sport][version][group] = teams
+    cleanup_orphan_results(data)
+    save_data(data)
+
+    generated_count = len(list(combinations(teams, 2)))
+    return {
+        "status": "success",
+        "message": f"تم حفظ المجموعة وتوليد {generated_count} ماتش تلقائيًا",
+        "generated_matches": generated_count,
+    }
+
+
+@app.delete("/admin/group")
+def delete_group(
+    sport: str = Query(...),
+    version: str = Query(...),
+    group: str = Query(...),
+):
+    if sport not in SPORTS or version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="بيانات غير صحيحة")
+
+    data = load_data()
+    groups = data["groups"].get(sport, {}).get(version, {})
+    if group not in groups:
+        raise HTTPException(status_code=404, detail="المجموعة غير موجودة")
+
+    del groups[group]
+    cleanup_orphan_results(data)
+    save_data(data)
+    return {"status": "success", "message": "تم حذف المجموعة ونتائجها"}
+
+
+@app.get("/admin/matches")
+def admin_matches(
+    sport: Optional[str] = Query(None),
+    version: Optional[str] = Query(None),
+    group: Optional[str] = Query(None),
+    only_unplayed: bool = Query(False),
+):
+    data = load_data()
+    if sport == "":
+        sport = None
+    if version == "":
+        version = None
+    if group == "":
+        group = None
+    return generate_matches(data, sport_filter=sport, version_filter=version, group_filter=group, only_unplayed=only_unplayed)
+
+
+@app.post("/admin/result")
+def save_result(payload: ResultPayload):
+    if payload.score1 < 0 or payload.score2 < 0:
+        raise HTTPException(status_code=400, detail="النتيجة لا يمكن تكون بالسالب")
+
+    data = load_data()
+    all_matches = generate_matches(data)
+    match = next((m for m in all_matches if m["id"] == payload.match_id), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="الماتش غير موجود أو المجموعة اتغيرت")
+
+    data.setdefault("results", {})
+    data["results"][payload.match_id] = {
+        "sport": match["sport"],
+        "version": match["version"],
+        "group": match["group"],
+        "team1": match["team1"],
+        "team2": match["team2"],
+        "score1": payload.score1,
+        "score2": payload.score2,
+        "played_at": datetime.utcnow().isoformat() + "Z",
+    }
+    save_data(data)
+
+    sent_to = 0
+    if payload.notify:
+        title = f"نتيجة {match['sport_label']} 🏆"
+        body = f"{match['team1']} {payload.score1} - {payload.score2} {match['team2']} | المجموعة {match['group']}"
+        sent_to = send_push_to_all(title, body)
 
     return {
         "status": "success",
-        "message": "تم حفظ النتيجة وتحديث جدول الترتيب",
-        "result": result,
-        "standings": get_standings(sport_name)
+        "message": "تم حفظ النتيجة وتحديث المجموعة",
+        "match": {**match, "score1": payload.score1, "score2": payload.score2, "played": True},
+        "sent_to": sent_to,
     }
+
+
+@app.delete("/admin/result/{match_id}")
+def delete_result(match_id: str):
+    data = load_data()
+    if match_id not in data.get("results", {}):
+        raise HTTPException(status_code=404, detail="النتيجة غير موجودة")
+    del data["results"][match_id]
+    save_data(data)
+    return {"status": "success", "message": "تم حذف النتيجة والماتش رجع للقائمة"}
