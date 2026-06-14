@@ -224,7 +224,7 @@
     unicode-bidi: isolate;
     text-align: center;
 }
-}
+
 
 .matches-matrix tr:hover td {
     background-color: #f0f9ff; /* تأثير عند تمرير الماوس */
@@ -310,6 +310,64 @@
     padding: 4px 12px;
     font-size: 1.1rem;
 }
+
+.qualified-badge {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.status-badge-empty {
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+.winner-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+    font-size: 0.72rem;
+    font-weight: bold;
+}
+.match-team.winner-row {
+    background: #fff7ed;
+}
+.champion-card {
+    margin: 35px auto 0;
+    max-width: 560px;
+    text-align: center;
+    padding: 25px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #fff7ed, #fef3c7);
+    border: 2px solid var(--accent);
+    box-shadow: 0 15px 35px rgba(245, 158, 11, 0.22);
+}
+.champion-card .cup {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 8px;
+}
+.champion-card h3 {
+    margin: 0;
+    color: #92400e;
+    font-size: 1.4rem;
+}
+.champion-card p {
+    margin: 8px 0 0;
+    color: #78350f;
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
 /* =========================
    Responsive General Fixes
 ========================= */
@@ -804,18 +862,20 @@ async function loadStandings(sportName, element) {
                     <table>
                         <thead>
                             <tr>
-                                <th class="rank">المركز</th><th>الفريق</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>فرق</th><th>النقاط</th>
+                                <th class="rank">المركز</th><th>الفريق</th><th>الحالة</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>فرق</th><th>النقاط</th>
                             </tr>
                         </thead><tbody>`;
             groups[groupName].forEach((team, index) => {
                 const teamName = team["الفريق"] || "غير معروف";
                 const points = team["نقاط"] || 0;
+                const statusBadge = (index === 0 || index === 1) ? '<span class="qualified-badge">Qualified ✅</span>' : '<span class="status-badge-empty">—</span>';
                 let rowStyle = "";
                 if (index === 0 || index === 1) rowStyle = "background-color: #dcfce7;";
                 else if (index === 2 && !isVersion2) rowStyle = "background-color: #fef9c3;";
                 groupHtml += `<tr style="${rowStyle}">
                     <td class="rank">${index + 1}</td>
                     <td style="text-align:right; padding-right:30px;"><strong>${escapeHtml(teamName)}</strong></td>
+                    <td>${statusBadge}</td>
                     <td>${team["لعب"] || 0}</td><td>${team["فوز"] || 0}</td><td>${team["تعادل"] || 0}</td><td>${team["خسارة"] || 0}</td>
                     <td>${team["له"] || 0}</td><td>${team["عليه"] || 0}</td><td>${team["فرق"] || 0}</td>
                     <td style="color: var(--secondary); font-weight:bold;">${points}</td>
@@ -841,6 +901,7 @@ async function renderBracket(sportName) {
         const semi1 = data.semi1 || {};
         const semi2 = data.semi2 || {};
         const final = data.final || {};
+        const champion = getMatchWinner(final);
         container.innerHTML = `
             <div class="bracket-container" style="direction: ltr;">
                 <div class="bracket-column">
@@ -853,16 +914,33 @@ async function renderBracket(sportName) {
                     <div class="bracket-title" style="color: var(--accent); font-weight: bold;">Final 🏆</div>
                     ${renderMatchBox(final, true)}
                 </div>
-            </div>`;
+            </div>
+            ${champion ? `<div class="champion-card"><span class="cup">🏆</span><h3>Champion</h3><p>${escapeHtml(champion)}</p></div>` : ''}`;
     } catch(e) {
         container.innerHTML = "<p style='color:red; text-align:center;'>فشل تحميل النهائيات.</p>";
     }
 }
 
+function hasNumericScore(value) {
+    const text = String(value ?? '').trim();
+    return text !== '' && text !== '-' && !Number.isNaN(Number(text));
+}
+
+function getMatchWinner(match) {
+    if (!match || !hasNumericScore(match.score1) || !hasNumericScore(match.score2)) return '';
+    const s1 = Number(match.score1);
+    const s2 = Number(match.score2);
+    if (s1 === s2) return '';
+    return s1 > s2 ? (match.team1 || '') : (match.team2 || '');
+}
+
 function renderMatchBox(match, isFinal = false) {
+    const winner = getMatchWinner(match);
+    const team1Win = winner && winner === (match.team1 || '');
+    const team2Win = winner && winner === (match.team2 || '');
     return `<div class="match-box ${isFinal ? 'final-match' : ''}">
-        <div class="match-team"><span>${escapeHtml(match.team1 || '-')}</span><span class="team-score">${escapeHtml(match.score1 || '-')}</span></div>
-        <div class="match-team"><span>${escapeHtml(match.team2 || '-')}</span><span class="team-score">${escapeHtml(match.score2 || '-')}</span></div>
+        <div class="match-team ${team1Win ? 'winner-row' : ''}"><span>${escapeHtml(match.team1 || '-')}${team1Win ? '<span class="winner-badge">Winner 🏆</span>' : ''}</span><span class="team-score">${escapeHtml(match.score1 || '-')}</span></div>
+        <div class="match-team ${team2Win ? 'winner-row' : ''}"><span>${escapeHtml(match.team2 || '-')}${team2Win ? '<span class="winner-badge">Winner 🏆</span>' : ''}</span><span class="team-score">${escapeHtml(match.score2 || '-')}</span></div>
     </div>`;
 }
 
