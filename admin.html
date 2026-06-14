@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم | War Zone</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.72);
+            --primary-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-orange: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), transparent 35%),
+                radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.10), transparent 35%),
+                var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 30px 16px;
+            min-height: 100vh;
+        }
+
+        .admin-wrapper {
+            width: 100%;
+            max-width: 1050px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            align-items: start;
+        }
+
+        .admin-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            padding: 28px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        h1 {
+            text-align: center;
+            margin: 0 0 24px 0;
+            color: var(--primary-blue);
+            font-size: 1.55rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hint {
+            margin: -12px 0 22px 0;
+            color: var(--text-muted);
+            text-align: center;
+            font-size: 0.92rem;
+            line-height: 1.7;
+        }
+
+        .form-group { margin-bottom: 18px; }
+
+        .two-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 13px;
+            background: rgba(15, 23, 42, 0.62);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            transition: all 0.25s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+        }
+
+        select option { background: #0f172a; color: white; }
+
+        textarea {
+            resize: vertical;
+            min-height: 96px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-muted);
+            margin: 8px 0 18px;
+            user-select: none;
+        }
+
+        .checkbox-row input { width: 18px; height: 18px; }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.35);
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #status-message, #result-status {
+            margin-top: 18px;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+            line-height: 1.6;
+        }
+
+        .success {
+            background: rgba(52, 211, 153, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .error {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        @media (max-width: 520px) {
+            .two-cols { grid-template-columns: 1fr; }
+            .admin-card { padding: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="admin-wrapper">
+        <section class="admin-card">
+            <h1>🏆 تسجيل نتيجة ماتش</h1>
+            <p class="hint">اكتب النتيجة هنا، وسيتم تحديث لعب/فوز/تعادل/خسارة/نقاط في جدول المجموعات تلقائيًا.</p>
+
+            <form id="resultForm" onsubmit="sendMatchResult(event)">
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label for="sportName">اللعبة</label>
+                        <select id="sportName" onchange="loadTeamsList()" required>
+                            <option value="Football">Football ⚽</option>
+                            <option value="Dodgeball">Dodgeball 🤾🏻</option>
+                            <option value="Volleyball">Volleyball 🏐</option>
+                            <option value="Ultimate Ball">Ultimate Ball 🥏</option>
+                            <option value="Football2">Football 2 ⚽</option>
+                            <option value="Dodgeball2">Dodgeball 2 🤾🏻</option>
+                            <option value="Volleyball2">Volleyball 2 🏐</option>
+                            <option value="Ultimate Ball2">Ultimate Ball 2 🥏</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="groupName">المجموعة</label>
+                        <input type="text" id="groupName" placeholder="مثال: A أو X" oninput="loadTeamsList()" required>
+                    </div>
+                </div>
+
+                <datalist id="teamsList"></datalist>
+
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label for="team1">الفريق الأول</label>
+                        <input type="text" id="team1" list="teamsList" placeholder="اكتب اسم الفريق زي الجدول" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="team2">الفريق الثاني</label>
+                        <input type="text" id="team2" list="teamsList" placeholder="اكتب اسم الفريق زي الجدول" required>
+                    </div>
+                </div>
+
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label for="score1">نتيجة الفريق الأول</label>
+                        <input type="number" id="score1" min="0" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="score2">نتيجة الفريق الثاني</label>
+                        <input type="number" id="score2" min="0" value="0" required>
+                    </div>
+                </div>
+
+                <label class="checkbox-row">
+                    <input type="checkbox" id="sendPush" checked>
+                    ابعت إشعار بالنتيجة للناس المتابعة
+                </label>
+
+                <button type="submit" id="resultBtn">حفظ النتيجة وتحديث المجموعة ✅</button>
+            </form>
+
+            <div id="result-status"></div>
+        </section>
+
+        <section class="admin-card">
+            <h1>📣 إرسال إشعار للمشتركين</h1>
+            <p class="hint">استخدمها لأي إعلان عام غير نتيجة الماتش.</p>
+            
+            <form id="notificationForm" onsubmit="sendPushNotification(event)">
+                <div class="form-group">
+                    <label for="title">عنوان الإشعار</label>
+                    <input type="text" id="title" placeholder="مثال: مباراة قوية بدأت الآن! ⚽" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="body">نص الإشعار (الرسالة)</label>
+                    <textarea id="body" placeholder="مثال: تابع نتيجة مباراة فريق أ ضد فريق ب الحالية في الترتيب مجاناً." required></textarea>
+                </div>
+                
+                <button type="submit" id="submitBtn">إرسال الإشعار فوراً 🚀</button>
+            </form>
+
+            <div id="status-message"></div>
+        </section>
+    </main>
+
+    <script>
+        const VAPID_PUBLIC_KEY = "BNzit0AtKjV98NKB0QTVt8wpzvpEmxpmCq6PGIbxafoJUwjy7oODmFKoMSjNykAu6vp2ZHXhD4xeLunAD5AkIdo";
+
+        function showStatus(elementId, message, type) {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.className = type;
+            statusDiv.innerText = message;
+            statusDiv.style.display = 'block';
+        }
+
+        async function loadTeamsList() {
+            const sportName = document.getElementById('sportName').value;
+            const groupName = document.getElementById('groupName').value.trim();
+            const dataList = document.getElementById('teamsList');
+
+            try {
+                const response = await fetch(`/teams/${encodeURIComponent(sportName)}`);
+                const groups = await response.json();
+                const teams = groupName && groups[groupName] ? groups[groupName] : Object.values(groups).flat();
+                dataList.innerHTML = teams.map(team => `<option value="${team}"></option>`).join('');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function sendMatchResult(event) {
+            event.preventDefault();
+
+            const resultBtn = document.getElementById('resultBtn');
+            const payload = {
+                sport_name: document.getElementById('sportName').value,
+                group_name: document.getElementById('groupName').value,
+                team1: document.getElementById('team1').value,
+                team2: document.getElementById('team2').value,
+                score1: Number(document.getElementById('score1').value),
+                score2: Number(document.getElementById('score2').value),
+                send_push: document.getElementById('sendPush').checked
+            };
+
+            resultBtn.disabled = true;
+            resultBtn.innerText = "جاري حفظ النتيجة... ⏳";
+            document.getElementById('result-status').style.display = 'none';
+
+            try {
+                const response = await fetch('/submit-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    throw new Error(result.detail || 'فشل حفظ النتيجة');
+                }
+
+                showStatus('result-status', '✅ تم حفظ النتيجة وتحديث جدول الترتيب بنجاح.', 'success');
+            } catch (error) {
+                showStatus('result-status', `❌ ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                resultBtn.disabled = false;
+                resultBtn.innerText = "حفظ النتيجة وتحديث المجموعة ✅";
+            }
+        }
+
+        async function sendPushNotification(event) {
+            event.preventDefault();
+            
+            const titleInput = document.getElementById('title');
+            const bodyInput = document.getElementById('body');
+            const submitBtn = document.getElementById('submitBtn');
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "جاري الإرسال... ⏳";
+            document.getElementById('status-message').style.display = 'none';
+
+            try {
+                const response = await fetch('/send-notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: titleInput.value,
+                        body: bodyInput.value
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    showStatus('status-message', `✅ تم إرسال الإشعار بنجاح إلى ${result.sent_to} مستخدم نشط!`, 'success');
+                    titleInput.value = '';
+                    bodyInput.value = '';
+                } else {
+                    throw new Error('فشل السيرفر في معالجة الطلب');
+                }
+            } catch (error) {
+                showStatus('status-message', '❌ حدث خطأ أثناء الاتصال بالسيرفر، تأكد من تشغيله.', 'error');
+                console.error(error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "إرسال الإشعار فوراً 🚀";
+            }
+        }
+
+        window.addEventListener('load', loadTeamsList);
+    </script>
+</body>
+</html>
