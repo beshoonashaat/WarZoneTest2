@@ -5,64 +5,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>War Zone Standings</title>
     <style>
+        .top-nav {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    position: sticky; /* لجعل الشريط يختفي ويظهر عند التمرير */
+    top: 10px;
+    z-index: 1000;
+}
+
+.top-nav button {
+    background-color: var(--secondary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.top-nav button:hover {
+    background-color: var(--primary);
+}
+
+/* تحسين شكل حاوية المباريات */
+#main-content {
+    margin-top: 20px;
+    min-height: 200px;
+}
+
         :root {
             --primary: #1e3a8a;
             --secondary: #0284c7;
             --accent: #f59e0b;
             --bg: #f8fafc;
             --text: #0f172a;
-            --success: #16a34a;
         }
-
-        * { box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg);
             color: var(--text);
-            margin: 0 auto;
+            margin: 0;
             padding: 20px;
-            max-width: 1400px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
             padding: 30px;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
             border-radius: 15px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-
-        .top-nav {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            background: white;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            position: sticky;
-            top: 10px;
-            z-index: 1000;
-            flex-wrap: wrap;
-        }
-
-        .top-nav button {
-            background-color: var(--secondary);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.3s, transform .2s;
-        }
-
-        .top-nav button:hover { background-color: var(--primary); transform: translateY(-1px); }
 
         .sports-container {
             display: grid;
@@ -83,8 +85,16 @@
             font-weight: bold;
         }
 
-        .sport-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
-        .sport-card.active { border-color: var(--accent); background-color: #fef3c7; color: #b45309; }
+        .sport-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+
+        .sport-card.active {
+            border-color: var(--accent);
+            background-color: #fef3c7;
+            color: #b45309;
+        }
 
         .standings-section {
             background: white;
@@ -92,141 +102,571 @@
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             min-height: 400px;
-            overflow-x: auto;
         }
 
         .group-container { margin-bottom: 40px; }
-        .group-title { color: var(--primary); border-right: 4px solid var(--accent); padding-right: 10px; margin-bottom: 15px; }
 
-        table { width: 100%; border-collapse: collapse; border-radius: 10px; overflow: hidden; }
-        th, td { padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+        .group-title {
+            color: var(--primary);
+            border-right: 4px solid var(--accent);
+            padding-right: 10px;
+            margin-bottom: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
         th { background-color: var(--primary); color: white; font-weight: 600; }
+
         tr:nth-child(even) { background-color: #f8fafc; }
+
         tr:hover { background-color: #f1f5f9; }
+
         .rank { font-weight: bold; width: 60px; color: #64748b; }
-        .team-name-cell { text-align: right; padding-right: 30px; }
-        .points-cell { color: var(--secondary); font-weight: bold; }
-        .diff-positive { color: #15803d; font-weight: bold; }
-        .diff-negative { color: #dc2626; font-weight: bold; }
 
-        .matches-table { border: 2px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); min-width: 900px; }
-        .matches-table th { background-color: #f1f5f9; color: var(--text); border: 1px solid #cbd5e1; }
-        .matches-table td { border: 1px solid #cbd5e1; font-size: 0.95rem; }
-        .status-played { color: #15803d; font-weight: bold; }
-        .status-unplayed { color: #64748b; font-weight: bold; }
+        footer {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f1f5f9;
+    margin-top: 50px;
+    border-top: 1px solid #e2e8f0;
+}
 
-        #teamSearch:focus { border-color: var(--secondary) !important; box-shadow: 0 0 8px rgba(2, 132, 199, 0.2); }
-        .highlight-cell { background-color: #fef3c7 !important; border: 2px solid #f59e0b !important; font-weight: bold; color: #b45309 !important; }
+.social-links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 15px;
+}
 
-        .empty-state {
-            text-align: center;
-            padding: 45px 15px;
-            color: #64748b;
-            font-size: 1.05rem;
-            line-height: 1.8;
-        }
+.social-links a {
+    color: var(--primary);
+    font-size: 1.8rem;
+    transition: transform 0.3s ease, color 0.3s ease;
+}
 
-        .bracket-container { display: flex; justify-content: space-around; align-items: center; gap: 20px; padding: 40px 10px; direction: ltr; min-width: 720px; }
-        .bracket-column { display: flex; flex-direction: column; justify-content: space-around; gap: 50px; }
-        .match-box { background: white; border: 2px solid var(--primary); border-radius: 8px; width: 220px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
-        .match-team { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
-        .match-team:last-child { border-bottom: none; }
-        .team-score { background: var(--primary); color: white; padding: 2px 8px; border-radius: 4px; min-width: 24px; text-align: center; }
-        .bracket-title { text-align: center; color: var(--secondary); font-size: 1.2rem; margin-bottom: 10px; }
-        .final-match { transform: scale(1.18); margin-left: 35px; border-color: var(--accent) !important; box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+.social-links a:hover {
+    transform: scale(1.2);
+}
 
-        #notification-banner {
-            display:none;
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: #1e3a8a;
-            color: white;
-            padding: 15px;
-            border-radius: 12px;
-            z-index: 9999;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            text-align: center;
-            border: 1px solid #38bdf8;
-        }
+.social-links .facebook:hover { color: #1877F2; }
+.social-links .instagram:hover { color: #E4405F; }
+.social-links .youtube:hover { color: #FF0000; }
 
-        footer { text-align: center; padding: 40px 20px; background: #f1f5f9; margin-top: 50px; border-top: 1px solid #e2e8f0; }
-        .social-links { display: flex; justify-content: center; gap: 20px; margin-top: 15px; }
-        .social-links a { color: var(--primary); font-size: 1.8rem; transition: transform 0.3s ease, color 0.3s ease; }
-        .social-links a:hover { transform: scale(1.2); }
-        .social-links .facebook:hover { color: #1877F2; }
-        .social-links .instagram:hover { color: #E4405F; }
-        .social-links .youtube:hover { color: #FF0000; }
+.matches-table {
+    border: 2px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
 
-        @media (max-width: 900px) {
-            body { padding: 12px; }
-            header { padding: 24px 16px; }
-            header h1 { font-size: 1.7rem; }
-            .sports-container { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-            .standings-section { padding: 18px; }
-            th, td { padding: 10px 8px; font-size: 0.88rem; }
-            table { min-width: 760px; }
-            .top-nav { top: 0; gap: 8px; padding: 10px; }
-            .top-nav button { flex: 1 1 calc(50% - 8px); padding: 10px 8px; font-size: 0.85rem; }
-        }
+.matches-table th {
+    background-color: #f1f5f9; /* لون فاتح مثل الصورة */
+    color: var(--text);
+    border: 1px solid #cbd5e1;
+}
 
-        @media (max-width: 500px) {
-            .sports-container { grid-template-columns: 1fr 1fr; }
-            header h1 { font-size: 1.35rem; }
-            .sport-card { padding: 12px 8px; font-size: 0.85rem; }
-            .top-nav button { flex: 1 1 100%; }
-        }
+.matches-table td {
+    border: 1px solid #cbd5e1;
+    font-size: 0.95rem;
+}
+
+.time-cell {
+    background-color: #ffffff;
+    white-space: nowrap;
+    width: 120px;
+}
+
+/* تمييز الصفوف عند التمرير */
+.matches-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.matches-matrix {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.matches-matrix th {
+    background-color: #f8fafc;
+    color: #1e3a8a;
+    padding: 15px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.matches-matrix td {
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    background: white;
+}
+
+.time-column {
+    background-color: #f1f5f9 !important;
+    color: #0f172a;
+    width: 120px;
+    font-weight: bold;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: center;
+}
+
+
+.matches-matrix tr:hover td {
+    background-color: #f0f9ff; /* تأثير عند تمرير الماوس */
+}
+#teamSearch:focus {
+    border-color: var(--secondary) !important;
+    box-shadow: 0 0 8px rgba(2, 132, 199, 0.2);
+    transition: all 0.3s ease;
+}
+/* التنسيق الخاص بالخانة المميزة */
+.highlight-cell {
+    background-color: #fef3c7 !important; /* لون أصفر هادئ */
+    border: 2px solid #f59e0b !important; /* إطار برتقالي */
+    transform: scale(1.05); /* تكبير بسيط للفت الانتباه */
+    transition: all 0.2s ease;
+    font-weight: bold;
+    color: #b45309 !important;
+}
+.bracket-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 20px;
+    padding: 40px 10px;
+    direction: ltr; /* لجعل الشجرة ترسم من اليسار لليمين بشكل منطقي */
+}
+
+.bracket-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 50px;
+}
+
+.match-box {
+    background: white;
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    width: 220px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.match-team {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.match-team:last-child { border-bottom: none; }
+
+.team-name { font-weight: bold; color: var(--text); font-size: 0.9rem; }
+.team-score { 
+    background: var(--primary); 
+    color: white; 
+    padding: 2px 8px; 
+    border-radius: 4px; 
+    min-width: 20px; 
+    text-align: center;
+}
+
+.bracket-title {
+    text-align: center;
+    color: var(--secondary);
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+/* تنسيق خاص لماتش النهائي ليكون أكبر */
+.final-match {
+    transform: scale(1.25); /* تكبير الماتش بنسبة 25% */
+    margin-left: 40px;      /* مسافة إضافية لتمييزه */
+    border-color: var(--accent) !important; /* لون الإطار البرتقالي المميز */
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15); /* ظل أقوى */
+}
+
+/* تكبير الخط داخل ماتش النهائي */
+.final-match .team-name {
+    font-size: 1.1rem;
+}
+
+.final-match .team-score {
+    padding: 4px 12px;
+    font-size: 1.1rem;
+}
+/* =========================
+   Responsive General Fixes
+========================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* يمنع الجداول من كسر التصميم */
+.standings-section,
+#main-content {
+    overflow-x: auto;
+}
+
+/* الصور أو أي عناصر كبيرة */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* =========================
+   Laptop / Medium Screens
+========================= */
+
+@media (max-width: 1200px) {
+    body {
+        padding: 16px;
+    }
+
+    .sports-container {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .match-box {
+        width: 200px;
+    }
+
+    .bracket-container {
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding: 30px 10px;
+    }
+}
+
+/* =========================
+   Tablet
+========================= */
+
+@media (max-width: 900px) {
+    header {
+        padding: 24px 16px;
+        margin-bottom: 20px;
+    }
+
+    header h1 {
+        font-size: 1.7rem;
+    }
+
+    .top-nav {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px;
+        top: 5px;
+    }
+
+    .top-nav button {
+        padding: 9px 14px;
+        font-size: 0.9rem;
+    }
+
+    .sports-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .standings-section {
+        padding: 18px;
+    }
+
+    th, td {
+        padding: 10px 8px;
+        font-size: 0.9rem;
+    }
+
+    .matches-matrix th,
+    .matches-matrix td {
+        padding: 10px 8px;
+        font-size: 0.85rem;
+    }
+
+    .bracket-container {
+        gap: 25px;
+        overflow-x: auto;
+        padding-bottom: 25px;
+    }
+
+    .bracket-column {
+        min-width: 210px;
+    }
+
+    .final-match {
+        transform: scale(1.05);
+        margin-left: 10px;
+    }
+}
+
+/* =========================
+   Mobile
+========================= */
+
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    header {
+        padding: 22px 12px;
+        border-radius: 12px;
+    }
+
+    header h1 {
+        font-size: 1.4rem;
+        line-height: 1.4;
+    }
+
+    header p {
+        font-size: 0.9rem;
+    }
+
+    .top-nav {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .top-nav button {
+        flex: 1 1 calc(50% - 8px);
+        padding: 10px 8px;
+        font-size: 0.85rem;
+    }
+
+    .sports-container {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .sport-card {
+        padding: 12px 8px;
+        font-size: 0.85rem;
+        border-radius: 10px;
+    }
+
+    .standings-section {
+        padding: 14px;
+        border-radius: 12px;
+    }
+
+    .group-title {
+        font-size: 1.1rem;
+        padding-right: 8px;
+    }
+
+    table {
+        min-width: 650px;
+    }
+
+    .matches-table,
+    .matches-matrix {
+        min-width: 950px;
+    }
+
+    th, td {
+        padding: 9px 7px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .time-cell,
+    .time-column {
+        width: 90px;
+        font-size: 0.8rem;
+    }
+
+    .highlight-cell {
+        transform: scale(1.02);
+    }
+
+    footer {
+        padding: 30px 10px;
+        margin-top: 35px;
+    }
+
+    .social-links {
+        gap: 15px;
+    }
+
+    .social-links a {
+        font-size: 1.5rem;
+    }
+
+    .bracket-container {
+        overflow-x: auto;
+        justify-content: flex-start;
+        gap: 20px;
+        padding: 25px 5px;
+    }
+
+    .bracket-column {
+        min-width: 190px;
+        gap: 35px;
+    }
+
+    .match-box {
+        width: 180px;
+    }
+
+    .match-team {
+        padding: 8px;
+    }
+
+    .team-name {
+        font-size: 0.78rem;
+    }
+
+    .team-score {
+        padding: 2px 6px;
+        font-size: 0.8rem;
+    }
+
+    .bracket-title {
+        font-size: 1rem;
+    }
+
+    .final-match {
+        transform: scale(1);
+        margin-left: 0;
+    }
+
+    .final-match .team-name {
+        font-size: 0.85rem;
+    }
+
+    .final-match .team-score {
+        padding: 3px 8px;
+        font-size: 0.85rem;
+    }
+}
+
+/* =========================
+   Small Mobile
+========================= */
+
+@media (max-width: 420px) {
+    body {
+        padding: 8px;
+    }
+
+    .top-nav button {
+        flex: 1 1 100%;
+    }
+
+    .sports-container {
+        grid-template-columns: 1fr;
+    }
+
+    header h1 {
+        font-size: 1.25rem;
+    }
+
+    .standings-section {
+        padding: 10px;
+    }
+
+    table {
+        min-width: 600px;
+    }
+
+    .matches-table,
+    .matches-matrix {
+        min-width: 950px;
+    }
+}
+        
     </style>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+
     <header>
         <h1>🏆 War Zone Standings</h1>
-        <p>Live groups, generated matches, and updated results</p>
     </header>
 
-    <nav class="top-nav">
-        <button onclick="goHome(false)">المجموعات</button>
-        <button onclick="goHome(true)">المجموعات 2</button>
-        <button onclick="toggleFinalsMode()">نهائيات</button>
-        <button onclick="loadMatches('Day1')">ماتشات المجموعات</button>
-        <button onclick="loadMatches('Day2')">ماتشات المجموعات 2</button>
-    </nav>
+    <nav class="top-nav" id="topNav">
+    <button data-tab-key="groups" onclick="goHome(false)">المجموعات</button>
+    <button data-tab-key="groups2" onclick="goHome(true)">المجموعات 2</button>
+    <button data-tab-key="finals" onclick="toggleFinalsMode()">نهائيات</button>
+    <button data-tab-key="matches_day1" onclick="loadMatches('Day1')">ماتشات أول يوم</button>
+    <button data-tab-key="matches_day2" onclick="loadMatches('Day2')">ماتشات تاني يوم</button>
+    <button data-tab-key="results_day1" onclick="loadDayResults('Day1')">نتايج اليوم الأول</button>
+    <button data-tab-key="results_day2" onclick="loadDayResults('Day2')">نتايج اليوم الثاني</button>
+</nav>
 
-    <div id="sports-nav" class="sports-container">
-        <div class="sport-card active" data-sport="Football" onclick="loadStandings('Football', this)">Football ⚽</div>
-        <div class="sport-card" data-sport="Dodgeball" onclick="loadStandings('Dodgeball', this)">Dodgeball 🤾🏻</div>
-        <div class="sport-card" data-sport="Volleyball" onclick="loadStandings('Volleyball', this)">Volleyball 🏐</div>
-        <div class="sport-card" data-sport="Ultimate Ball" onclick="loadStandings('Ultimate Ball', this)">Ultimate Ball 🥏</div>
-    </div>
+    
 
-    <div id="notification-banner">
-        <p style="margin: 0 0 10px 0; font-weight: bold;">عايز تتابع نتايج War Zone أول بأول؟ 🏆</p>
-        <button onclick="enableNotifications()" style="background: #f59e0b; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 10px;">فعل الإشعارات 🔔</button>
-        <button onclick="document.getElementById('notification-banner').style.display='none'" style="background: transparent; color: #94a3b8; border: none; cursor: pointer; text-decoration: underline;">ليس الآن</button>
-    </div>
+<div id="sports-nav" class="sports-container">
+    <div class="sport-card active" data-sport="Football" onclick="loadStandings('Football', this)">Football ⚽</div>
+    <div class="sport-card" data-sport="Dodgeball" onclick="loadStandings('Dodgeball', this)">Dodgeball 🤾🏻</div>
+    <div class="sport-card" data-sport="Volleyball" onclick="loadStandings('Volleyball', this)">Volleyball 🏐</div>
+    <div class="sport-card" data-sport="Ultimate Ball" onclick="loadStandings('Ultimate Ball', this)">Ultimate Ball 🥏</div>
+</div>
 
-    <main class="standings-section">
+<div id="notification-banner" style="display:none; position: fixed; bottom: 20px; left: 20px; right: 20px; background: #1e3a8a; color: white; padding: 15px; border-radius: 12px; z-index: 9999; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; border: 1px solid #38bdf8;">
+    <p style="margin: 0 0 10px 0; font-weight: bold;">عايز تتابع نتايج War Zone أول بأول؟ 🏆</p>
+    <button onclick="enableNotifications()" style="background: #f59e0b; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 10px;">فعل الإشعارات 🔔</button>
+    <button onclick="document.getElementById('notification-banner').style.display='none'" style="background: transparent; color: #94a3b8; border: none; cursor: pointer; text-decoration: underline;">ليس الآن</button>
+</div>
+
+
+
+    <div class="standings-section">
         <h2 id="current-sport-title" style="text-align: right;">جدول ترتيب: Football</h2>
         <div id="groups-container"></div>
-    </main>
+    </div>
 
-<script>
+    
+
+    <script>
+// حط هنا نفس الـ Public Key اللي حطيته في الـ main.py (اللي أوله B)
 const VAPID_PUBLIC_KEY = "BNzit0AtKjV98NKB0QTVt8wpzvpEmxpmCq6PGIbxafoJUwjy7oODmFKoMSjNykAu6vp2ZHXhD4xeLunAD5AkIdo";
+
 let isVersion2 = false;
 let isFinalsMode = false;
-let currentMatchesDay = null;
-
-function getSportLabel(sportName) {
-    const labels = {
-        "Football": "Football ⚽",
-        "Dodgeball": "Dodgeball 🤾🏻",
-        "Volleyball": "Volleyball 🏐",
-        "Ultimate Ball": "Ultimate Ball 🥏",
-    };
-    return labels[sportName] || sportName;
-}
+let currentView = 'groups';
+let siteVisibility = {
+    groups: true,
+    groups2: true,
+    finals: true,
+    matches_day1: true,
+    matches_day2: true,
+    results_day1: true,
+    results_day2: true,
+};
 
 window.addEventListener('load', () => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -276,100 +716,109 @@ async function initPushNotifications() {
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-    } catch (error) {
-        console.error("فشل تسجيل الإشعارات:", error);
-    }
+    } catch (error) { console.error("❌ فشل التسجيل بالكامل:", error); }
+}
+
+async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('خطأ في الاتصال بالسيرفر');
+    return await response.json();
+}
+
+async function loadSiteSettings() {
+    try {
+        const settings = await fetchJson('/site-settings');
+        siteVisibility = Object.assign(siteVisibility, settings.visibility || {});
+    } catch(e) { console.warn('settings fallback', e); }
+    applyVisibilitySettings();
+}
+
+function applyVisibilitySettings() {
+    document.querySelectorAll('[data-tab-key]').forEach(btn => {
+        const key = btn.getAttribute('data-tab-key');
+        btn.style.display = siteVisibility[key] === false ? 'none' : '';
+    });
+}
+
+async function loadInitialTab() {
+    await loadSiteSettings();
+    if (siteVisibility.groups !== false) return goHome(false);
+    if (siteVisibility.groups2 !== false) return goHome(true);
+    if (siteVisibility.finals !== false) return toggleFinalsMode();
+    if (siteVisibility.matches_day1 !== false) return loadMatches('Day1');
+    if (siteVisibility.matches_day2 !== false) return loadMatches('Day2');
+    if (siteVisibility.results_day1 !== false) return loadDayResults('Day1');
+    if (siteVisibility.results_day2 !== false) return loadDayResults('Day2');
+    document.getElementById('sports-nav').style.display = 'none';
+    document.getElementById('current-sport-title').innerText = 'War Zone';
+    document.getElementById('groups-container').innerHTML = '<p style="text-align:center; padding:20px;">كل التابات مخفية حالياً من لوحة التحكم.</p>';
 }
 
 function goHome(v2 = false) {
     isFinalsMode = false;
-    currentMatchesDay = null;
     isVersion2 = v2;
+    currentView = v2 ? 'groups2' : 'groups';
     document.getElementById('sports-nav').style.display = 'grid';
     window.scrollTo({top: 0, behavior: 'smooth'});
-    const firstSportCard = document.querySelector('.sport-card[data-sport="Football"]');
+    const firstSportCard = document.querySelector('.sport-card');
     loadStandings('Football', firstSportCard);
 }
 
 function toggleFinalsMode() {
     isFinalsMode = true;
-    currentMatchesDay = null;
+    currentView = 'finals';
     document.getElementById('sports-nav').style.display = 'grid';
-    const activeCard = document.querySelector('.sport-card.active') || document.querySelector('.sport-card[data-sport="Football"]');
-    const sport = activeCard?.dataset?.sport || 'Football';
-    renderBracket(sport);
+    const firstSportCard = document.querySelector('.sport-card');
+    loadStandings('Football', firstSportCard);
 }
 
 async function loadStandings(sportName, element) {
-    currentMatchesDay = null;
     document.querySelectorAll('.sport-card').forEach(card => card.classList.remove('active'));
-    if (element) element.classList.add('active');
+    if(element) element.classList.add('active');
 
     if (isFinalsMode) {
         await renderBracket(sportName);
         return;
     }
 
-    const apiSport = isVersion2 ? `${sportName}2` : sportName;
-    const displayTitle = getSportLabel(sportName);
-    document.getElementById('current-sport-title').innerText = `جدول ترتيب: ${displayTitle} - ${isVersion2 ? 'المجموعات 2' : 'المجموعات'}`;
+    if (isVersion2 && !sportName.endsWith('2')) sportName = sportName + "2";
+    else if (!isVersion2 && sportName.endsWith('2')) sportName = sportName.slice(0, -1);
+
+    const displayTitle = sportName.replace("2", "");
+    document.getElementById('current-sport-title').innerText = "جدول ترتيب: " + displayTitle;
     const container = document.getElementById('groups-container');
-    container.innerHTML = "<p class='empty-state'>جاري تحميل الترتيب...</p>";
+    container.innerHTML = "<p style='text-align:center; padding:20px;'>جاري تحميل الترتيب...</p>";
 
     try {
-        const response = await fetch(`/standings/${encodeURIComponent(apiSport)}`);
-        const groups = await response.json();
-
-        if (!groups || Object.keys(groups).length === 0) {
-            container.innerHTML = "<div class='empty-state'>لسه مفيش مجموعات متسجلة هنا.<br>ادخل من لوحة التحكم وأضف الفرق أولًا.</div>";
+        const groups = await fetchJson(`/standings/${encodeURIComponent(sportName)}`);
+        if (Object.keys(groups).length === 0) {
+            container.innerHTML = "<p style='text-align:center; padding:20px;'>لسه مفيش مجموعات محفوظة من لوحة التحكم.</p>";
             return;
         }
-
         let fullHtml = "";
-        for (const groupName of Object.keys(groups).sort()) {
-            const teams = groups[groupName];
+        for (const groupName in groups) {
             let groupHtml = `
                 <div class="group-container">
                     <h3 class="group-title">المجموعة ${escapeHtml(groupName)}</h3>
                     <table>
                         <thead>
                             <tr>
-                                <th class="rank">المركز</th>
-                                <th>الفريق</th>
-                                <th>لعب</th>
-                                <th>فوز</th>
-                                <th>تعادل</th>
-                                <th>خسارة</th>
-                                <th>له</th>
-                                <th>عليه</th>
-                                <th>فرق</th>
-                                <th>النقاط</th>
+                                <th class="rank">المركز</th><th>الفريق</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>فرق</th><th>النقاط</th>
                             </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            teams.forEach((team, index) => {
+                        </thead><tbody>`;
+            groups[groupName].forEach((team, index) => {
+                const teamName = team["الفريق"] || "غير معروف";
+                const points = team["نقاط"] || 0;
                 let rowStyle = "";
                 if (index === 0 || index === 1) rowStyle = "background-color: #dcfce7;";
                 else if (index === 2 && !isVersion2) rowStyle = "background-color: #fef9c3;";
-                const diff = Number(team["فرق"] || 0);
-                const diffClass = diff > 0 ? 'diff-positive' : (diff < 0 ? 'diff-negative' : '');
-
-                groupHtml += `
-                    <tr style="${rowStyle}">
-                        <td class="rank">${index + 1}</td>
-                        <td class="team-name-cell"><strong>${escapeHtml(team["الفريق"] || "غير معروف")}</strong></td>
-                        <td>${team["لعب"] || 0}</td>
-                        <td>${team["فوز"] || 0}</td>
-                        <td>${team["تعادل"] || 0}</td>
-                        <td>${team["خسارة"] || 0}</td>
-                        <td>${team["له"] || 0}</td>
-                        <td>${team["عليه"] || 0}</td>
-                        <td class="${diffClass}">${diff}</td>
-                        <td class="points-cell">${team["نقاط"] || 0}</td>
-                    </tr>
-                `;
+                groupHtml += `<tr style="${rowStyle}">
+                    <td class="rank">${index + 1}</td>
+                    <td style="text-align:right; padding-right:30px;"><strong>${escapeHtml(teamName)}</strong></td>
+                    <td>${team["لعب"] || 0}</td><td>${team["فوز"] || 0}</td><td>${team["تعادل"] || 0}</td><td>${team["خسارة"] || 0}</td>
+                    <td>${team["له"] || 0}</td><td>${team["عليه"] || 0}</td><td>${team["فرق"] || 0}</td>
+                    <td style="color: var(--secondary); font-weight:bold;">${points}</td>
+                </tr>`;
             });
             groupHtml += `</tbody></table></div>`;
             fullHtml += groupHtml;
@@ -382,157 +831,163 @@ async function loadStandings(sportName, element) {
 
 async function renderBracket(sportName) {
     const container = document.getElementById('groups-container');
-    const version = isVersion2 ? '2' : '1';
-    document.getElementById('current-sport-title').innerText = `نهائيات: ${getSportLabel(sportName)} - ${isVersion2 ? 'المجموعات 2' : 'المجموعات'} 🏆`;
-    container.innerHTML = "<p class='empty-state'>جاري تجهيز النهائيات...</p>";
+    const cleanName = sportName.replace("2", "");
+    document.getElementById('current-sport-title').innerText = `نهائيات: ${cleanName} 🏆`;
+    container.innerHTML = "<p style='text-align:center; padding:20px;'>جاري تحميل النهائيات...</p>";
 
     try {
-        const response = await fetch(`/finals/${encodeURIComponent(sportName)}?version=${version}`);
-        const data = await response.json();
+        const data = await fetchJson(`/finals/${encodeURIComponent(cleanName)}`);
+        const semi1 = data.semi1 || {};
+        const semi2 = data.semi2 || {};
+        const final = data.final || {};
         container.innerHTML = `
-            <div class="bracket-container">
+            <div class="bracket-container" style="direction: ltr;">
                 <div class="bracket-column">
                     <div class="bracket-title">Semi-Final</div>
-                    <div class="match-box">
-                        <div class="match-team"><span>${escapeHtml(data.semi1.team1)}</span><span class="team-score">${data.semi1.score1}</span></div>
-                        <div class="match-team"><span>${escapeHtml(data.semi1.team2)}</span><span class="team-score">${data.semi1.score2}</span></div>
-                    </div>
-                    <div class="match-box">
-                        <div class="match-team"><span>${escapeHtml(data.semi2.team1)}</span><span class="team-score">${data.semi2.score1}</span></div>
-                        <div class="match-team"><span>${escapeHtml(data.semi2.team2)}</span><span class="team-score">${data.semi2.score2}</span></div>
-                    </div>
+                    ${renderMatchBox(semi1)}
+                    ${renderMatchBox(semi2)}
                 </div>
                 <div style="font-size: 2rem; color: var(--accent);">➔</div>
                 <div class="bracket-column">
                     <div class="bracket-title" style="color: var(--accent); font-weight: bold;">Final 🏆</div>
-                    <div class="match-box final-match">
-                        <div class="match-team"><span>${escapeHtml(data.final.team1)}</span><span class="team-score">${data.final.score1}</span></div>
-                        <div class="match-team"><span>${escapeHtml(data.final.team2)}</span><span class="team-score">${data.final.score2}</span></div>
-                    </div>
+                    ${renderMatchBox(final, true)}
                 </div>
-            </div>
-        `;
-    } catch (e) {
-        container.innerHTML = "<p style='color:red; text-align:center;'>خطأ في تحميل النهائيات.</p>";
+            </div>`;
+    } catch(e) {
+        container.innerHTML = "<p style='color:red; text-align:center;'>فشل تحميل النهائيات.</p>";
     }
 }
 
+function renderMatchBox(match, isFinal = false) {
+    return `<div class="match-box ${isFinal ? 'final-match' : ''}">
+        <div class="match-team"><span>${escapeHtml(match.team1 || '-')}</span><span class="team-score">${escapeHtml(match.score1 || '-')}</span></div>
+        <div class="match-team"><span>${escapeHtml(match.team2 || '-')}</span><span class="team-score">${escapeHtml(match.score2 || '-')}</span></div>
+    </div>`;
+}
+
 async function loadMatches(dayName) {
+    currentView = dayName === 'Day1' ? 'matches_day1' : 'matches_day2';
     isFinalsMode = false;
-    currentMatchesDay = dayName;
     document.getElementById('sports-nav').style.display = 'none';
     const container = document.getElementById('groups-container');
     const title = document.getElementById('current-sport-title');
-    const versionTitle = dayName === 'Day1' ? 'ماتشات المجموعات' : 'ماتشات المجموعات 2';
-    title.innerText = versionTitle;
-
+    title.innerText = (dayName === 'Day1') ? "جدول مباريات اليوم الأول" : "جدول مباريات اليوم الثاني";
     const currentSearch = document.getElementById('teamSearch') ? document.getElementById('teamSearch').value : "";
-    container.innerHTML = "<p class='empty-state'>جاري تحميل الماتشات...</p>";
+    container.innerHTML = "<p style='text-align:center; padding:20px;'>جاري تحميل جدول الماتشات...</p>";
 
     try {
-        const response = await fetch(`/matches/${dayName}`);
-        const data = await response.json();
-
-        if (!data || data.length === 0) {
-            container.innerHTML = "<div class='empty-state'>لسه مفيش ماتشات متولدة هنا.<br>ادخل من لوحة التحكم وأضف مجموعة وفرق.</div>";
-            return;
-        }
-
-        let html = `
+        const data = await fetchJson(`/matches/${dayName}`);
+        let tableHtml = `
             <div class="filter-section" style="margin-bottom: 20px; text-align: center;">
-                <input type="text" id="teamSearch" onkeyup="filterTeams()" placeholder="ابحث عن فريق..." value="${escapeAttr(currentSearch)}" style="padding: 10px; width: min(350px, 100%); border-radius: 8px; border: 1px solid #ddd;">
+                <input type="text" id="teamSearch" onkeyup="filterTeams()" placeholder="ابحث عن فريق..." value="${escapeHtml(currentSearch)}" style="padding: 10px; width: 300px; border-radius: 8px; border: 1px solid #ddd;">
             </div>
-            <div class="table-container">
-                <table class="matches-table" id="matchesTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>اللعبة</th>
-                            <th>المجموعة</th>
-                            <th>الفريق الأول</th>
-                            <th>النتيجة</th>
-                            <th>الفريق الثاني</th>
-                            <th>الحالة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        data.forEach((match, index) => {
-            const score = match.played ? `${match.score1} - ${match.score2}` : '-';
-            const statusClass = match.played ? 'status-played' : 'status-unplayed';
-            const status = match.played ? 'تم اللعب ✅' : 'لم تُلعب بعد';
-            html += `
-                <tr>
-                    <td><strong>${index + 1}</strong></td>
-                    <td>${escapeHtml(match.sport_label)}</td>
-                    <td>${escapeHtml(match.group)}</td>
-                    <td>${escapeHtml(match.team1)}</td>
-                    <td><strong>${escapeHtml(score)}</strong></td>
-                    <td>${escapeHtml(match.team2)}</td>
-                    <td class="${statusClass}">${status}</td>
-                </tr>
-            `;
+            <div class="table-container"><table class="matches-matrix" id="matchesTable"><thead><tr>
+                <th>التوقيت</th><th>Football ⚽</th><th>Dodgeball 🤾🏻</th><th>Volleyball 🏐</th><th>Ultimate 🥏</th><th>Mini Game 1</th><th>Mini Game 2</th>
+            </tr></thead><tbody>`;
+        data.forEach(row => {
+            tableHtml += `<tr>
+                <td class="time-column" dir="ltr"><strong>${escapeHtml(row["التوقيت"] || "-")}</strong></td>
+                <td>${escapeHtml(row["Football"] || "-")}</td>
+                <td>${escapeHtml(row["Dodgeball"] || "-")}</td>
+                <td>${escapeHtml(row["Volleyball"] || "-")}</td>
+                <td>${escapeHtml(row["Ultimate Ball"] || "-")}</td>
+                <td>${escapeHtml(row["Mini Game 1"] || "-")}</td>
+                <td>${escapeHtml(row["Mini Game 2"] || "-")}</td>
+            </tr>`;
         });
-
-        html += `</tbody></table></div>`;
-        container.innerHTML = html;
+        tableHtml += `</tbody></table></div>`;
+        container.innerHTML = tableHtml;
         if (currentSearch !== "") filterTeams();
     } catch (e) {
-        console.error(e);
-        container.innerHTML = "<p style='color:red; text-align:center;'>خطأ في تحميل الماتشات.</p>";
+        container.innerHTML = "<p style='color:red; text-align:center;'>فشل تحميل جدول الماتشات.</p>";
+    }
+}
+
+async function loadDayResults(dayName) {
+    currentView = dayName === 'Day1' ? 'results_day1' : 'results_day2';
+    isFinalsMode = false;
+    document.getElementById('sports-nav').style.display = 'none';
+    const container = document.getElementById('groups-container');
+    const title = document.getElementById('current-sport-title');
+    title.innerText = (dayName === 'Day1') ? "نتايج اليوم الأول" : "نتايج اليوم الثاني";
+    container.innerHTML = "<p style='text-align:center; padding:20px;'>جاري تحميل النتائج...</p>";
+
+    try {
+        const results = await fetchJson(`/day-results/${dayName}`);
+        if (!results.length) {
+            container.innerHTML = "<p style='text-align:center; padding:20px;'>لسه مفيش نتائج متسجلة لليوم ده.</p>";
+            return;
+        }
+        let html = `<div class="table-container"><table class="matches-matrix" id="resultsTable"><thead><tr>
+            <th>التوقيت</th><th>اللعبة</th><th>التاب</th><th>المجموعة</th><th>الفريق الأول</th><th>النتيجة</th><th>الفريق الثاني</th>
+        </tr></thead><tbody>`;
+        results.forEach(r => {
+            html += `<tr>
+                <td class="time-column" dir="ltr"><strong>${escapeHtml(r.match_time || '-')}</strong></td>
+                <td>${escapeHtml(r.sport_label || r.sport)}</td>
+                <td>${escapeHtml(r.version_label || r.version)}</td>
+                <td>${escapeHtml(r.group || '-')}</td>
+                <td>${escapeHtml(r.team1)}</td>
+                <td style="font-weight:bold; color: var(--secondary);">${escapeHtml(r.score1)} - ${escapeHtml(r.score2)}</td>
+                <td>${escapeHtml(r.team2)}</td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    } catch(e) {
+        container.innerHTML = "<p style='color:red; text-align:center;'>فشل تحميل النتائج.</p>";
     }
 }
 
 function filterTeams() {
     const input = document.getElementById("teamSearch");
-    const table = document.getElementById("matchesTable");
-    if (!input || !table) return;
     const filter = input.value.toLowerCase();
+    const table = document.getElementById("matchesTable");
+    if(!table) return;
     const cells = table.getElementsByTagName("td");
-
     for (let i = 0; i < cells.length; i++) {
         const cell = cells[i];
+        if (cell.classList.contains("time-column")) continue;
         const text = cell.textContent || cell.innerText;
         if (filter !== "" && text.toLowerCase().indexOf(filter) > -1) cell.classList.add("highlight-cell");
         else cell.classList.remove("highlight-cell");
     }
 }
 
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function escapeAttr(value) {
-    return escapeHtml(value).replace(/`/g, '&#96;');
-}
-
 setInterval(() => {
-    if (currentMatchesDay) {
-        loadMatches(currentMatchesDay);
-        return;
-    }
-    const activeCard = document.querySelector('.sport-card.active') || document.querySelector('.sport-card[data-sport="Football"]');
-    const sport = activeCard?.dataset?.sport || 'Football';
-    loadStandings(sport, activeCard);
+    const activeCard = document.querySelector('.sport-card.active');
+    const sport = activeCard ? (activeCard.getAttribute('data-sport') || activeCard.innerText.split(' ')[0]) : 'Football';
+    if (currentView === 'groups') loadStandings(sport, activeCard);
+    else if (currentView === 'groups2') loadStandings(sport, activeCard);
+    else if (currentView === 'finals') renderBracket(sport);
+    else if (currentView === 'matches_day1') loadMatches('Day1');
+    else if (currentView === 'matches_day2') loadMatches('Day2');
+    else if (currentView === 'results_day1') loadDayResults('Day1');
+    else if (currentView === 'results_day2') loadDayResults('Day2');
 }, 30000);
 
-window.addEventListener('load', () => goHome(false));
-</script>
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
 
+window.addEventListener('load', loadInitialTab);
+    </script>
+</body>
 <footer>
     <p>ماتنساش تعمللنا فولو على كل منصاتنا على الSocial Media</p>
     <div class="social-links">
-        <a href="https://www.youtube.com/@NewGenerationGam3a" target="_blank" class="youtube"><i class="fab fa-youtube"></i></a>
-        <a href="https://www.instagram.com/newgenerationgam3a/" target="_blank" class="instagram"><i class="fab fa-instagram"></i></a>
-        <a href="https://www.facebook.com/newgenerationgam3a" target="_blank" class="facebook"><i class="fab fa-facebook"></i></a>
+        <a href="https://www.youtube.com/@NewGenerationGam3a" target="_blank" class="youtube">
+            <i class="fab fa-youtube"></i>
+        </a>
+        <a href="https://www.instagram.com/newgenerationgam3a/" target="_blank" class="instagram">
+            <i class="fab fa-instagram"></i>
+        </a>
+        <a href="https://www.facebook.com/newgenerationgam3a" target="_blank" class="facebook">
+            <i class="fab fa-facebook"></i>
+        </a>
+
+        </a>
     </div>
     <p style="font-size: 0.8rem; margin-top: 20px; color: #64748b;">© 2026 War Zone Standings. All rights reserved.</p>
 </footer>
-</body>
 </html>
