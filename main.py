@@ -53,14 +53,14 @@ DEFAULT_VISIBILITY = {
 
 DATA_FILE = Path("warzone_data.json")
 
-MATCHES_URLS = {
+DEFAULT_MATCHES_URLS = {
     "Day1": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=186915705&single=true&output=csv",
     "Day2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqzlySvoK19S0Maw_xLSlUMmGcOPx6eNqiwKJKCtrHwkDxKuO95ZJKbvyNcXns8TxRe1oYnhZRtlNs/pub?gid=1547895490&single=true&output=csv",
 }
 
 # الجداول القديمة بتاعة المجموعات/الترتيب من Google Sheets.
 # دي هتكون المصدر الأساسي للمجموعات، والجروبات اليدوية هتفضل fallback لو الشيت فاضي/مش متاح.
-SHEET_URLS = {
+DEFAULT_SHEET_URLS = {
     "Football": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=621025358&single=true&output=csv",
     "Dodgeball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=863642824&single=true&output=csv",
     "Volleyball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1033302345&single=true&output=csv",
@@ -71,8 +71,12 @@ SHEET_URLS = {
     "Ultimate Ball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1116838793&single=true&output=csv"
 }
 
-all_matches_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in MATCHES_URLS}
-all_standings_sheet_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in SHEET_URLS}
+# Runtime keys remain the same, but URLs can be changed from /sheets and stored in warzone_data.json.
+MATCHES_URLS = DEFAULT_MATCHES_URLS
+SHEET_URLS = DEFAULT_SHEET_URLS
+
+all_matches_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in DEFAULT_MATCHES_URLS}
+all_standings_sheet_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in DEFAULT_SHEET_URLS}
 
 # =========================
 # Push Notifications
@@ -159,9 +163,58 @@ class GroupOverridePayload(BaseModel):
     to_group: str = ""
 
 
+class SheetLinksPayload(BaseModel):
+    standings: Dict[str, str] = {}
+    matches: Dict[str, str] = {}
+
+
+
 # =========================
 # Data helpers
 # =========================
+def default_sheet_links() -> Dict[str, Dict[str, str]]:
+    return {
+        "standings": DEFAULT_SHEET_URLS.copy(),
+        "matches": DEFAULT_MATCHES_URLS.copy(),
+    }
+
+
+def ensure_sheet_links(data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    links = data.setdefault("sheet_links", default_sheet_links())
+    links.setdefault("standings", {})
+    links.setdefault("matches", {})
+    for key, url in DEFAULT_SHEET_URLS.items():
+        links["standings"].setdefault(key, url)
+    for key, url in DEFAULT_MATCHES_URLS.items():
+        links["matches"].setdefault(key, url)
+    # Keep only known keys so accidental inputs do not break the app.
+    links["standings"] = {k: str(links["standings"].get(k, DEFAULT_SHEET_URLS[k])).strip() or DEFAULT_SHEET_URLS[k] for k in DEFAULT_SHEET_URLS}
+    links["matches"] = {k: str(links["matches"].get(k, DEFAULT_MATCHES_URLS[k])).strip() or DEFAULT_MATCHES_URLS[k] for k in DEFAULT_MATCHES_URLS}
+    data["sheet_links"] = links
+    return links
+
+
+def get_current_sheet_links() -> Dict[str, Dict[str, str]]:
+    return ensure_sheet_links(load_data())
+
+
+def get_current_standings_urls() -> Dict[str, str]:
+    return get_current_sheet_links()["standings"]
+
+
+def get_current_matches_urls() -> Dict[str, str]:
+    return get_current_sheet_links()["matches"]
+
+
+def validate_sheet_url(url: str) -> str:
+    clean = str(url or "").strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="لينك الشيت لا يمكن يكون فاضي")
+    if not clean.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="لينك الشيت لازم يبدأ بـ http أو https")
+    return clean
+
+
 def default_finals_for_sport(sport: str) -> Dict[str, Dict[str, str]]:
     return {
         "sport": sport,
@@ -183,6 +236,7 @@ def blank_data() -> Dict[str, Any]:
         "visibility": DEFAULT_VISIBILITY.copy(),
         "team_name_overrides": {},
         "group_overrides": default_group_overrides(),
+        "sheet_links": default_sheet_links(),
     }
 
 
@@ -205,6 +259,7 @@ def load_data() -> Dict[str, Any]:
     data.setdefault("visibility", {})
     data.setdefault("team_name_overrides", {})
     data.setdefault("group_overrides", {})
+    ensure_sheet_links(data)
     for sport in SPORTS:
         data["groups"].setdefault(sport, {})
         data["groups"][sport].setdefault("1", {})
@@ -313,10 +368,11 @@ def parse_match_text(match_text: Any) -> tuple[str, str]:
     return "", ""
 
 
-def fetch_matches_once(day_name: str) -> List[Dict[str, Any]]:
-    if day_name not in MATCHES_URLS:
+def fetch_matches_once(day_name: str, url: Optional[str] = None) -> List[Dict[str, Any]]:
+    urls = get_current_matches_urls()
+    if day_name not in urls:
         raise HTTPException(status_code=404, detail="اليوم غير موجود")
-    response = requests.get(MATCHES_URLS[day_name], timeout=20)
+    response = requests.get(url or urls[day_name], timeout=20)
     response.raise_for_status()
     response.encoding = "utf-8"
     df = pd.read_csv(StringIO(response.text))
@@ -328,7 +384,7 @@ def fetch_matches_once(day_name: str) -> List[Dict[str, Any]]:
 
 
 def get_schedule_rows(day_name: str) -> List[Dict[str, Any]]:
-    if day_name not in MATCHES_URLS:
+    if day_name not in DEFAULT_MATCHES_URLS:
         raise HTTPException(status_code=404, detail="اليوم غير موجود")
     if not all_matches_data.get(day_name):
         try:
@@ -357,10 +413,11 @@ def get_team_name_from_row(row: Dict[str, Any]) -> str:
     return ""
 
 
-def fetch_standings_once(sheet_key: str) -> List[Dict[str, Any]]:
-    if sheet_key not in SHEET_URLS:
+def fetch_standings_once(sheet_key: str, url: Optional[str] = None) -> List[Dict[str, Any]]:
+    urls = get_current_standings_urls()
+    if sheet_key not in urls:
         raise HTTPException(status_code=404, detail="جدول المجموعات غير موجود")
-    response = requests.get(SHEET_URLS[sheet_key], timeout=20)
+    response = requests.get(url or urls[sheet_key], timeout=20)
     response.raise_for_status()
     response.encoding = "utf-8"
     df = pd.read_csv(StringIO(response.text))
@@ -373,7 +430,7 @@ def fetch_standings_once(sheet_key: str) -> List[Dict[str, Any]]:
 
 def get_sheet_rows_for_groups(sport: str, version: str) -> List[Dict[str, Any]]:
     sheet_key = sport + ("2" if version == "2" else "")
-    if sheet_key not in SHEET_URLS:
+    if sheet_key not in DEFAULT_SHEET_URLS:
         return []
     if not all_standings_sheet_data.get(sheet_key):
         try:
@@ -545,6 +602,65 @@ def build_groups_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "source_label": source_label,
                 })
     return items
+
+
+def build_raw_team_name_options(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return original team names from sheets/match schedules before aliases are applied.
+    Used by admin alias dropdown so the admin does not have to type the original sheet name manually.
+    """
+    items: Dict[str, Dict[str, Any]] = {}
+
+    def add_name(name: Any, source: str) -> None:
+        clean = clean_team_name(name)
+        if not clean or clean == "-":
+            return
+        key = normalize_text(clean)
+        if key not in items:
+            items[key] = {"name": clean, "sources": []}
+        if source and source not in items[key]["sources"]:
+            items[key]["sources"].append(source)
+
+    # Original names from standings/group sheets, before apply_team_override().
+    for sport in SPORTS:
+        for version in ["1", "2"]:
+            for row in get_sheet_rows_for_groups(sport, version):
+                group_name = clean_team_name(row.get("المجموعة", row.get("Group", "A"))) or "A"
+                add_name(
+                    get_team_name_from_row(row),
+                    f"{SPORT_LABELS.get(sport, sport)} / {VERSION_LABELS.get(version, version)} / مجموعة {group_name}",
+                )
+
+    # Original names from match schedule sheets, before aliases are applied.
+    for day_name in ["Day1", "Day2"]:
+        for row in get_schedule_rows(day_name):
+            for sport in SPORTS:
+                column = get_schedule_sport_column(sport)
+                raw_match_text = clean_team_name(row.get(column, ""))
+                if not raw_match_text or raw_match_text == "-":
+                    continue
+                team1, team2 = parse_match_text(raw_match_text)
+                source = f"{DAY_LABELS.get(day_name, day_name)} / {SPORT_LABELS.get(sport, sport)}"
+                if team1 and team2:
+                    add_name(team1, source)
+                    add_name(team2, source)
+                else:
+                    # Fallback for unusual cells that contain a single placeholder/team value.
+                    add_name(raw_match_text, source)
+
+    # Include existing old names so saved overrides can still be edited/deleted even if the sheet changed.
+    for old_name in (data.get("team_name_overrides", {}) or {}).keys():
+        add_name(old_name, "استبدال محفوظ")
+
+    out = []
+    for item in items.values():
+        sources = item.get("sources", [])
+        out.append({
+            "name": item["name"],
+            "sources": sources,
+            "label": item["name"] + (" — " + "، ".join(sources[:2]) if sources else ""),
+        })
+    out.sort(key=lambda x: normalize_text(x["name"]))
+    return out
 
 
 def build_group_overrides_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -790,15 +906,17 @@ def send_push_to_all(title: str, body: str) -> int:
 
 async def sync_google_sheets_loop():
     while True:
-        for key in SHEET_URLS:
+        standing_urls = get_current_standings_urls()
+        match_urls = get_current_matches_urls()
+        for key, url in standing_urls.items():
             try:
-                rows = await asyncio.to_thread(fetch_standings_once, key)
+                rows = await asyncio.to_thread(fetch_standings_once, key, url)
                 print(f"✅ Updated sheet groups/standings: {key} ({len(rows)} rows)")
             except Exception as e:
                 print(f"❌ Error syncing standings {key}: {e}")
-        for day in MATCHES_URLS:
+        for day, url in match_urls.items():
             try:
-                rows = await asyncio.to_thread(fetch_matches_once, day)
+                rows = await asyncio.to_thread(fetch_matches_once, day, url)
                 print(f"✅ Updated sheet matches: {day} ({len(rows)} rows)")
             except Exception as e:
                 print(f"❌ Error syncing {day}: {e}")
@@ -821,6 +939,11 @@ async def serve_home():
 @app.get("/admin")
 async def serve_admin():
     return FileResponse("admin.html")
+
+
+@app.get("/sheets")
+async def serve_sheets():
+    return FileResponse("sheets.html")
 
 
 @app.get("/sw.js")
@@ -919,13 +1042,104 @@ def get_admin_data(request: Request):
         "groups": get_all_effective_groups(data),
         "groups_list": build_groups_list(data),
         "manual_groups": data.get("groups", {}),
+        "raw_team_name_options": build_raw_team_name_options(data),
         "team_name_overrides": get_team_overrides(data),
         "group_overrides": data.get("group_overrides", {}),
         "group_overrides_list": build_group_overrides_list(data),
         "results": get_day_results_list(data, "Day1") + get_day_results_list(data, "Day2"),
         "finals": data.get("finals", {}),
         "visibility": data.get("visibility", DEFAULT_VISIBILITY.copy()),
+        "sheet_links": ensure_sheet_links(data),
     }
+
+
+@app.get("/admin/sheet-links")
+def get_sheet_links(request: Request):
+    require_admin(request)
+    data = load_data()
+    links = ensure_sheet_links(data)
+    return {
+        "standings": links["standings"],
+        "matches": links["matches"],
+        "defaults": default_sheet_links(),
+        "sports": SPORTS,
+        "sport_labels": SPORT_LABELS,
+        "version_labels": VERSION_LABELS,
+        "day_labels": DAY_LABELS,
+        "standings_labels": {
+            key: f"{SPORT_LABELS.get(key[:-1] if key.endswith('2') else key, key)} / {VERSION_LABELS.get('2' if key.endswith('2') else '1')}"
+            for key in DEFAULT_SHEET_URLS
+        },
+        "match_labels": {key: DAY_LABELS.get(key, key) for key in DEFAULT_MATCHES_URLS},
+    }
+
+
+@app.post("/admin/sheet-links")
+def save_sheet_links(payload: SheetLinksPayload, request: Request):
+    require_admin(request)
+    data = load_data()
+    links = ensure_sheet_links(data)
+    changed_standings = []
+    changed_matches = []
+
+    for key in DEFAULT_SHEET_URLS:
+        if key in payload.standings:
+            new_url = validate_sheet_url(payload.standings[key])
+            if links["standings"].get(key) != new_url:
+                changed_standings.append(key)
+            links["standings"][key] = new_url
+
+    for key in DEFAULT_MATCHES_URLS:
+        if key in payload.matches:
+            new_url = validate_sheet_url(payload.matches[key])
+            if links["matches"].get(key) != new_url:
+                changed_matches.append(key)
+            links["matches"][key] = new_url
+
+    data["sheet_links"] = links
+    save_data(data)
+
+    # امسح الكاش عشان أول Refresh يسحب من الروابط الجديدة فورًا.
+    for key in changed_standings:
+        all_standings_sheet_data[key] = []
+    for key in changed_matches:
+        all_matches_data[key] = []
+
+    return {
+        "status": "success",
+        "message": "تم حفظ لينكات الشيتات. اضغط تحديث بيانات الشيت الآن لو عايز تسحبها فورًا.",
+        "changed_standings": changed_standings,
+        "changed_matches": changed_matches,
+        "sheet_links": links,
+    }
+
+
+@app.post("/admin/sheet-links/reset")
+def reset_sheet_links(request: Request):
+    require_admin(request)
+    data = load_data()
+    data["sheet_links"] = default_sheet_links()
+    save_data(data)
+    for key in DEFAULT_SHEET_URLS:
+        all_standings_sheet_data[key] = []
+    for key in DEFAULT_MATCHES_URLS:
+        all_matches_data[key] = []
+    return {"status": "success", "message": "تم إرجاع كل لينكات الشيتات للأصل", "sheet_links": data["sheet_links"]}
+
+
+@app.post("/admin/test-sheet-link")
+def test_sheet_link(payload: Dict[str, str], request: Request):
+    require_admin(request)
+    url = validate_sheet_url(payload.get("url", ""))
+    try:
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+        response.encoding = "utf-8"
+        df = pd.read_csv(StringIO(response.text))
+        df.columns = df.columns.str.strip()
+        return {"status": "success", "message": "اللينك شغال وتمت قراءة CSV", "rows": int(len(df)), "columns": list(df.columns)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"اللينك مش شغال أو مش CSV صحيح: {e}")
 
 
 @app.post("/admin/group")
@@ -1154,14 +1368,16 @@ def reload_sheets(request: Request):
     standings_count = 0
     matches_count = 0
     errors = []
-    for key in SHEET_URLS:
+    standing_urls = get_current_standings_urls()
+    match_urls = get_current_matches_urls()
+    for key, url in standing_urls.items():
         try:
-            standings_count += len(fetch_standings_once(key))
+            standings_count += len(fetch_standings_once(key, url))
         except Exception as e:
             errors.append(f"{key}: {e}")
-    for day in MATCHES_URLS:
+    for day, url in match_urls.items():
         try:
-            matches_count += len(fetch_matches_once(day))
+            matches_count += len(fetch_matches_once(day, url))
         except Exception as e:
             errors.append(f"{day}: {e}")
     return {"status": "success", "message": "تم تحديث بيانات الشيت", "standings_rows": standings_count, "matches_rows": matches_count, "errors": errors}
