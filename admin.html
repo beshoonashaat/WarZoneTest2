@@ -141,6 +141,7 @@
     </section>
 
     <div class="top-actions hidden" id="adminTopActions">
+        <button class="secondary" onclick="window.location.href='/sheets'">لينكات الشيتات 🔗</button>
         <button class="secondary" onclick="reloadSheets()">تحديث بيانات الشيت الآن 🔄</button>
         <button class="danger" onclick="adminLogout()">تسجيل خروج</button>
     </div>
@@ -200,7 +201,10 @@
             <form onsubmit="saveTeamNameOverride(event)">
                 <div class="form-group">
                     <label>الاسم القديم في الشيت</label>
-                    <input type="text" id="aliasOldName" placeholder="مثال: 1 أو فريق 1" required>
+                    <select id="aliasOldName" required>
+                        <option value="">جاري تحميل أسماء الفرق من الشيت...</option>
+                    </select>
+                    <p class="help" style="font-size:0.82rem; margin-top:7px;">اختار الاسم الأصلي زي ما هو موجود في شيت المجموعات أو جدول الماتشات.</p>
                 </div>
                 <div class="form-group">
                     <label>الاسم الجديد اللي يظهر للناس</label>
@@ -414,6 +418,7 @@ async function loadAdminData() {
     ['groupSport', 'overrideSport', 'resultSport', 'finalSport'].forEach(fillSportsSelect);
     renderGroupsList();
     renderAliasList();
+    renderAliasTeamOptions();
     renderGroupOverridesList();
     updateGroupOverrideControls();
     renderRecentResults();
@@ -453,6 +458,23 @@ function renderAliasList() {
         <strong>${escapeHtml(oldName)}</strong> ⟵ <span class="pill">${escapeHtml(newName)}</span>
         <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteTeamNameOverride('${escapeAttr(oldName)}')">حذف الاستبدال</button>
     </div>`).join('');
+}
+
+
+function renderAliasTeamOptions() {
+    const select = document.getElementById('aliasOldName');
+    if (!select || !adminData) return;
+    const options = adminData.raw_team_name_options || [];
+    if (!options.length) {
+        select.innerHTML = '<option value="">لا توجد أسماء فرق متاحة من الشيتات حاليًا</option>';
+        return;
+    }
+    const aliases = adminData.team_name_overrides || {};
+    select.innerHTML = '<option value="">اختار الاسم الأصلي من الشيت...</option>' + options.map(item => {
+        const already = Object.prototype.hasOwnProperty.call(aliases, item.name) ? ' ✅ متبدل قبل كده' : '';
+        const label = (item.label || item.name) + already;
+        return `<option value="${escapeAttr(item.name)}">${escapeHtml(label)}</option>`;
+    }).join('');
 }
 
 
@@ -688,6 +710,7 @@ async function saveTeamNameOverride(event) {
         document.getElementById('aliasNewName').value = '';
         adminData = await apiJson('/admin-data');
         renderAliasList();
+        renderAliasTeamOptions();
         renderGroupsList();
         renderGroupOverridesList();
         updateGroupOverrideControls();
@@ -702,6 +725,7 @@ async function deleteTeamNameOverride(oldName) {
         await apiJson(`/admin/team-name-override?old_name=${encodeURIComponent(oldName)}`, {method:'DELETE'});
         adminData = await apiJson('/admin-data');
         renderAliasList();
+        renderAliasTeamOptions();
         renderGroupsList();
         renderGroupOverridesList();
         updateGroupOverrideControls();
@@ -716,6 +740,7 @@ async function reloadSheets() {
         adminData = await apiJson('/admin-data');
         renderGroupsList();
         renderAliasList();
+        renderAliasTeamOptions();
         renderGroupOverridesList();
         updateGroupOverrideControls();
         loadGroupsForResult();
