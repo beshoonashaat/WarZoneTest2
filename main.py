@@ -58,7 +58,21 @@ MATCHES_URLS = {
     "Day2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqzlySvoK19S0Maw_xLSlUMmGcOPx6eNqiwKJKCtrHwkDxKuO95ZJKbvyNcXns8TxRe1oYnhZRtlNs/pub?gid=1547895490&single=true&output=csv",
 }
 
+# الجداول القديمة بتاعة المجموعات/الترتيب من Google Sheets.
+# دي هتكون المصدر الأساسي للمجموعات، والجروبات اليدوية هتفضل fallback لو الشيت فاضي/مش متاح.
+SHEET_URLS = {
+    "Football": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=621025358&single=true&output=csv",
+    "Dodgeball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=863642824&single=true&output=csv",
+    "Volleyball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1033302345&single=true&output=csv",
+    "Ultimate Ball": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=2017169226&single=true&output=csv",
+    "Football2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=907297379&single=true&output=csv",
+    "Dodgeball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=402610111&single=true&output=csv",
+    "Volleyball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=42182221&single=true&output=csv",
+    "Ultimate Ball2": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTPGvQX6sgITTWxbUXDqQzLSmQqU6TBxmZJDt0DS9pKOMNnoK7490Bn1TvNQrFlGdJZIH0Z9YPGTYb6/pub?gid=1116838793&single=true&output=csv"
+}
+
 all_matches_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in MATCHES_URLS}
+all_standings_sheet_data: Dict[str, List[Dict[str, Any]]] = {k: [] for k in SHEET_URLS}
 
 # =========================
 # Push Notifications
@@ -130,6 +144,21 @@ class VisibilityPayload(BaseModel):
     visibility: Dict[str, bool]
 
 
+class TeamNameOverridePayload(BaseModel):
+    old_name: str
+    new_name: str
+
+
+class GroupOverridePayload(BaseModel):
+    sport: str
+    version: str
+    action: str  # add_team / hide_team / move_team / hide_group
+    group: str = ""
+    team: str = ""
+    from_group: str = ""
+    to_group: str = ""
+
+
 # =========================
 # Data helpers
 # =========================
@@ -142,12 +171,18 @@ def default_finals_for_sport(sport: str) -> Dict[str, Dict[str, str]]:
     }
 
 
+def default_group_overrides() -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
+    return {sport: {"1": [], "2": []} for sport in SPORTS}
+
+
 def blank_data() -> Dict[str, Any]:
     return {
         "groups": {sport: {"1": {}, "2": {}} for sport in SPORTS},
         "results": {},
         "finals": {sport: default_finals_for_sport(sport) for sport in SPORTS},
         "visibility": DEFAULT_VISIBILITY.copy(),
+        "team_name_overrides": {},
+        "group_overrides": default_group_overrides(),
     }
 
 
@@ -168,11 +203,16 @@ def load_data() -> Dict[str, Any]:
     data.setdefault("results", {})
     data.setdefault("finals", {})
     data.setdefault("visibility", {})
+    data.setdefault("team_name_overrides", {})
+    data.setdefault("group_overrides", {})
     for sport in SPORTS:
         data["groups"].setdefault(sport, {})
         data["groups"][sport].setdefault("1", {})
         data["groups"][sport].setdefault("2", {})
         data["finals"].setdefault(sport, default_finals_for_sport(sport))
+        data["group_overrides"].setdefault(sport, {})
+        data["group_overrides"][sport].setdefault("1", [])
+        data["group_overrides"][sport].setdefault("2", [])
     for key, default_value in DEFAULT_VISIBILITY.items():
         data["visibility"].setdefault(key, default_value)
     return data
@@ -184,11 +224,45 @@ def save_data(data: Dict[str, Any]) -> None:
 
 
 def normalize_text(value: Any) -> str:
-    return " ".join(str(value or "").strip().split()).casefold()
+    text = " ".join(str(value or "").strip().split()).casefold()
+    trans = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+    return text.translate(trans)
 
 
 def clean_team_name(name: Any) -> str:
     return str(name or "").strip()
+
+
+def team_key_variants(name: Any) -> List[str]:
+    base = normalize_text(name)
+    variants = {base}
+    for prefix in ["فريق ", "team ", "team-", "team_", "#"]:
+        if base.startswith(prefix):
+            variants.add(base[len(prefix):].strip())
+    if base:
+        variants.add(f"فريق {base}")
+        variants.add(f"team {base}")
+    return [v for v in variants if v]
+
+
+def get_team_overrides(data: Dict[str, Any]) -> Dict[str, str]:
+    raw = data.get("team_name_overrides", {}) or {}
+    if isinstance(raw, list):
+        raw = {str(x.get("old_name", "")): str(x.get("new_name", "")) for x in raw if isinstance(x, dict)}
+    return {clean_team_name(k): clean_team_name(v) for k, v in raw.items() if clean_team_name(k) and clean_team_name(v)}
+
+
+def apply_team_override(data: Dict[str, Any], name: Any) -> str:
+    clean = clean_team_name(name)
+    overrides = get_team_overrides(data)
+    lookup: Dict[str, str] = {}
+    for old_name, new_name in overrides.items():
+        for key in team_key_variants(old_name):
+            lookup[key] = new_name
+    for key in team_key_variants(clean):
+        if key in lookup:
+            return lookup[key]
+    return clean
 
 
 def normalize_sport_and_version(sport_name: str) -> tuple[str, str]:
@@ -265,14 +339,245 @@ def get_schedule_rows(day_name: str) -> List[Dict[str, Any]]:
     return all_matches_data.get(day_name, [])
 
 
+def get_team_name_from_row(row: Dict[str, Any]) -> str:
+    for key, value in row.items():
+        key_norm = normalize_text(key)
+        if key_norm in {"الفريق", "اسم الفريق", "team", "team name"} and clean_team_name(value):
+            return clean_team_name(value)
+    values = list(row.values())
+    if len(values) > 9 and clean_team_name(values[9]):
+        return clean_team_name(values[9])
+    ignored = {"المجموعة", "group", "لعب", "فوز", "تعادل", "خسارة", "نقاط", "النقاط", "له", "عليه", "فرق"}
+    for key, value in row.items():
+        if normalize_text(key) in ignored:
+            continue
+        val = clean_team_name(value)
+        if val and val != "-":
+            return val
+    return ""
+
+
+def fetch_standings_once(sheet_key: str) -> List[Dict[str, Any]]:
+    if sheet_key not in SHEET_URLS:
+        raise HTTPException(status_code=404, detail="جدول المجموعات غير موجود")
+    response = requests.get(SHEET_URLS[sheet_key], timeout=20)
+    response.raise_for_status()
+    response.encoding = "utf-8"
+    df = pd.read_csv(StringIO(response.text))
+    df.columns = df.columns.str.strip()
+    df = df.fillna("")
+    rows = df.to_dict(orient="records")
+    all_standings_sheet_data[sheet_key] = rows
+    return rows
+
+
+def get_sheet_rows_for_groups(sport: str, version: str) -> List[Dict[str, Any]]:
+    sheet_key = sport + ("2" if version == "2" else "")
+    if sheet_key not in SHEET_URLS:
+        return []
+    if not all_standings_sheet_data.get(sheet_key):
+        try:
+            return fetch_standings_once(sheet_key)
+        except Exception as e:
+            print(f"❌ Error loading standings sheet {sheet_key}: {e}")
+            return []
+    return all_standings_sheet_data.get(sheet_key, [])
+
+
+def groups_from_sheet(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[str]]:
+    rows = get_sheet_rows_for_groups(sport, version)
+    groups: Dict[str, List[str]] = {}
+    seen: Dict[str, set] = {}
+    for row in rows:
+        group_name = clean_team_name(row.get("المجموعة", row.get("Group", "A"))) or "A"
+        team = apply_team_override(data, get_team_name_from_row(row))
+        if not team:
+            continue
+        groups.setdefault(group_name, [])
+        seen.setdefault(group_name, set())
+        key = normalize_text(team)
+        if key not in seen[group_name]:
+            groups[group_name].append(team)
+            seen[group_name].add(key)
+    return groups
+
+
+def get_manual_groups(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[str]]:
+    groups = data.get("groups", {}).get(sport, {}).get(version, {}) or {}
+    clean_groups: Dict[str, List[str]] = {}
+    for group_name, teams in groups.items():
+        cleaned = []
+        seen = set()
+        for team in teams or []:
+            name = apply_team_override(data, team)
+            key = normalize_text(name)
+            if name and key not in seen:
+                cleaned.append(name)
+                seen.add(key)
+        if cleaned:
+            clean_groups[group_name] = cleaned
+    return clean_groups
+
+
+def get_group_overrides(data: Dict[str, Any], sport: str, version: str) -> List[Dict[str, Any]]:
+    return data.setdefault("group_overrides", {}).setdefault(sport, {}).setdefault(version, [])
+
+
+def make_group_override_id(record: Dict[str, Any]) -> str:
+    # Deterministic id so the same override is not duplicated if you click twice.
+    raw = "|".join(str(record.get(k, "")) for k in ["sport", "version", "action", "group", "team", "from_group", "to_group"])
+    return hashlib.sha1(normalize_text(raw).encode("utf-8")).hexdigest()[:20]
+
+
+def add_team_once(groups: Dict[str, List[str]], group_name: str, team: str) -> None:
+    group_name = clean_team_name(group_name)
+    team = clean_team_name(team)
+    if not group_name or not team:
+        return
+    groups.setdefault(group_name, [])
+    existing = {normalize_text(t) for t in groups[group_name]}
+    if normalize_text(team) not in existing:
+        groups[group_name].append(team)
+
+
+def remove_team_from_groups(groups: Dict[str, List[str]], team: str, group_name: str = "") -> None:
+    team_norm = normalize_text(team)
+    group_norm = normalize_text(group_name)
+    if not team_norm:
+        return
+    for g in list(groups.keys()):
+        if group_norm and normalize_text(g) != group_norm:
+            continue
+        groups[g] = [t for t in groups[g] if normalize_text(t) != team_norm]
+
+
+def remove_group(groups: Dict[str, List[str]], group_name: str) -> None:
+    group_norm = normalize_text(group_name)
+    for g in list(groups.keys()):
+        if normalize_text(g) == group_norm:
+            del groups[g]
+
+
+def apply_group_overrides(data: Dict[str, Any], sport: str, version: str, base_groups: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    # Copy first so sheet data stays untouched.
+    groups: Dict[str, List[str]] = {clean_team_name(g): list(teams or []) for g, teams in (base_groups or {}).items()}
+    overrides = get_group_overrides(data, sport, version)
+
+    # 1) Move teams. This removes the team from any group first to avoid duplicates.
+    for rec in overrides:
+        if rec.get("action") != "move_team":
+            continue
+        team = apply_team_override(data, rec.get("team", ""))
+        to_group = clean_team_name(rec.get("to_group", ""))
+        if team and to_group:
+            remove_team_from_groups(groups, team)
+            add_team_once(groups, to_group, team)
+
+    # 2) Add admin-only teams on top of the sheet/manual data.
+    for rec in overrides:
+        if rec.get("action") != "add_team":
+            continue
+        add_team_once(groups, rec.get("group", ""), apply_team_override(data, rec.get("team", "")))
+
+    # 3) Hide teams from a specific group.
+    for rec in overrides:
+        if rec.get("action") != "hide_team":
+            continue
+        remove_team_from_groups(groups, apply_team_override(data, rec.get("team", "")), rec.get("group", ""))
+
+    # 4) Hide/delete full groups.
+    for rec in overrides:
+        if rec.get("action") != "hide_group":
+            continue
+        remove_group(groups, rec.get("group", ""))
+
+    # Clean empty groups and duplicates.
+    clean_groups: Dict[str, List[str]] = {}
+    for group_name, teams in groups.items():
+        cleaned = []
+        seen = set()
+        for team in teams:
+            team = clean_team_name(team)
+            key = normalize_text(team)
+            if team and key not in seen:
+                cleaned.append(team)
+                seen.add(key)
+        if cleaned:
+            clean_groups[group_name] = cleaned
+    return clean_groups
+
+
+def get_effective_groups(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[str]]:
+    sheet_groups = groups_from_sheet(data, sport, version)
+    base_groups = sheet_groups if sheet_groups else get_manual_groups(data, sport, version)
+    return apply_group_overrides(data, sport, version, base_groups)
+
+
+def get_all_effective_groups(data: Dict[str, Any]) -> Dict[str, Dict[str, Dict[str, List[str]]]]:
+    return {sport: {version: get_effective_groups(data, sport, version) for version in ["1", "2"]} for sport in SPORTS}
+
+
+def build_groups_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    for sport in SPORTS:
+        for version in ["1", "2"]:
+            sheet_groups = groups_from_sheet(data, sport, version)
+            source = "sheet" if sheet_groups else "manual"
+            groups = get_effective_groups(data, sport, version)
+            has_overrides = bool(get_group_overrides(data, sport, version))
+            if source == "sheet" and has_overrides:
+                source_label = "من الشيت + تعديلات الأدمن"
+            elif source == "sheet":
+                source_label = "من الشيت"
+            elif has_overrides:
+                source_label = "يدوي/بديل + تعديلات الأدمن"
+            else:
+                source_label = "يدوي/بديل"
+            for group_name, teams in groups.items():
+                items.append({
+                    "sport": sport,
+                    "sport_label": SPORT_LABELS.get(sport, sport),
+                    "version": version,
+                    "version_label": VERSION_LABELS.get(version, version),
+                    "group": group_name,
+                    "teams": teams,
+                    "source": source,
+                    "source_label": source_label,
+                })
+    return items
+
+
+def build_group_overrides_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    labels = {
+        "add_team": "إضافة فريق فوق الشيت",
+        "hide_team": "إخفاء/حذف فريق من العرض",
+        "move_team": "نقل فريق لمجموعة أخرى",
+        "hide_group": "إخفاء/حذف مجموعة كاملة",
+    }
+    items: List[Dict[str, Any]] = []
+    for sport in SPORTS:
+        for version in ["1", "2"]:
+            for rec in get_group_overrides(data, sport, version):
+                item = dict(rec)
+                item.setdefault("id", make_group_override_id(item))
+                item["sport"] = sport
+                item["version"] = version
+                item["sport_label"] = SPORT_LABELS.get(sport, sport)
+                item["version_label"] = VERSION_LABELS.get(version, version)
+                item["action_label"] = labels.get(item.get("action", ""), item.get("action", ""))
+                items.append(item)
+    return items
+
+
 def find_group_for_match(data: Dict[str, Any], sport: str, team1: str, team2: str) -> Dict[str, str]:
+    team1 = apply_team_override(data, team1)
+    team2 = apply_team_override(data, team2)
     t1 = normalize_text(team1)
     t2 = normalize_text(team2)
     if not t1 or not t2:
         return {"version": "", "group": ""}
-
     for version in ["1", "2"]:
-        groups = data.get("groups", {}).get(sport, {}).get(version, {})
+        groups = get_effective_groups(data, sport, version)
         for group_name, teams in groups.items():
             team_norms = {normalize_text(t) for t in teams}
             if t1 in team_norms and t2 in team_norms:
@@ -280,24 +585,48 @@ def find_group_for_match(data: Dict[str, Any], sport: str, team1: str, team2: st
     return {"version": "", "group": ""}
 
 
+def apply_overrides_to_match_text(data: Dict[str, Any], match_text: Any) -> str:
+    team1, team2 = parse_match_text(match_text)
+    if team1 and team2:
+        return f"{apply_team_override(data, team1)} ضد {apply_team_override(data, team2)}"
+    return apply_team_override(data, match_text)
+
+
+def apply_overrides_to_match_rows(data: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    processed = []
+    sport_columns = ["Football", "Dodgeball", "Volleyball", "Ultimate Ball"]
+    for row in rows:
+        new_row = dict(row)
+        for col in sport_columns:
+            if col in new_row:
+                val = clean_team_name(new_row.get(col, ""))
+                if val and val != "-":
+                    new_row[col] = apply_overrides_to_match_text(data, val)
+        processed.append(new_row)
+    return processed
+
+
 def build_available_schedule_matches(day_name: str, sport: str) -> List[Dict[str, Any]]:
     if sport not in SPORTS:
         raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
     data = load_data()
-    rows = get_schedule_rows(day_name)
+    raw_rows = get_schedule_rows(day_name)
     column = get_schedule_sport_column(sport)
     available: List[Dict[str, Any]] = []
 
-    for index, row in enumerate(rows):
-        match_text = str(row.get(column, "") or "").strip()
-        if not match_text or match_text == "-":
+    for index, row in enumerate(raw_rows):
+        raw_match_text = str(row.get(column, "") or "").strip()
+        if not raw_match_text or raw_match_text == "-":
             continue
         match_time = str(row.get("التوقيت", row.get("time", row.get("Time", ""))) or "").strip()
-        schedule_key = make_schedule_key(day_name, sport, index, match_time, match_text)
+        schedule_key = make_schedule_key(day_name, sport, index, match_time, raw_match_text)
         if schedule_key in data.get("results", {}):
             continue
 
-        team1, team2 = parse_match_text(match_text)
+        raw_team1, raw_team2 = parse_match_text(raw_match_text)
+        team1 = apply_team_override(data, raw_team1)
+        team2 = apply_team_override(data, raw_team2)
+        match_text = apply_overrides_to_match_text(data, raw_match_text)
         group_info = find_group_for_match(data, sport, team1, team2)
         label_parts = []
         if match_time:
@@ -317,6 +646,7 @@ def build_available_schedule_matches(day_name: str, sport: str) -> List[Dict[str
             "time": match_time,
             "match_time": match_time,
             "match_text": match_text,
+            "raw_match_text": raw_match_text,
             "team1": team1,
             "team2": team2,
             "version": group_info.get("version", ""),
@@ -327,15 +657,13 @@ def build_available_schedule_matches(day_name: str, sport: str) -> List[Dict[str
     return available
 
 
-
-
 def canonical_team_name(data: Dict[str, Any], sport: str, version: str, group: str, input_name: str) -> str:
-    teams = data.get("groups", {}).get(sport, {}).get(version, {}).get(group, [])
-    wanted = normalize_text(input_name)
+    teams = get_effective_groups(data, sport, version).get(group, [])
+    wanted = normalize_text(apply_team_override(data, input_name))
     for team in teams:
         if normalize_text(team) == wanted:
             return clean_team_name(team)
-    return clean_team_name(input_name)
+    return apply_team_override(data, input_name)
 
 
 def ensure_result_valid(data: Dict[str, Any], payload: ResultPayload) -> None:
@@ -345,21 +673,23 @@ def ensure_result_valid(data: Dict[str, Any], payload: ResultPayload) -> None:
         raise HTTPException(status_code=400, detail="اختار المجموعات أو المجموعات 2")
     if payload.day_name not in ["Day1", "Day2"]:
         raise HTTPException(status_code=400, detail="اليوم غير صحيح")
-    if normalize_text(payload.team1) == normalize_text(payload.team2):
+    team1 = apply_team_override(data, payload.team1)
+    team2 = apply_team_override(data, payload.team2)
+    if normalize_text(team1) == normalize_text(team2):
         raise HTTPException(status_code=400, detail="لا يمكن اختيار نفس الفريق مرتين")
 
-    groups = data.get("groups", {}).get(payload.sport, {}).get(payload.version, {})
+    groups = get_effective_groups(data, payload.sport, payload.version)
     teams = groups.get(payload.group)
     if teams is None:
-        raise HTTPException(status_code=404, detail="المجموعة غير موجودة في الأدمن")
+        raise HTTPException(status_code=404, detail="المجموعة غير موجودة. تأكد إن الفريقين موجودين في نفس مجموعة الشيت أو في مجموعة يدوية بديلة")
 
     team_norms = {normalize_text(t) for t in teams}
-    if normalize_text(payload.team1) not in team_norms or normalize_text(payload.team2) not in team_norms:
-        raise HTTPException(status_code=404, detail="الفريقين لازم يكونوا موجودين في نفس المجموعة المختارة")
+    if normalize_text(team1) not in team_norms or normalize_text(team2) not in team_norms:
+        raise HTTPException(status_code=404, detail="الفريقين لازم يكونوا موجودين في نفس المجموعة المختارة بعد استبدال الأسماء")
 
 
 def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[str, List[Dict[str, Any]]]:
-    groups = data.get("groups", {}).get(sport, {}).get(version, {})
+    groups = get_effective_groups(data, sport, version)
     results = data.get("results", {})
     standings: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -382,7 +712,8 @@ def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[
         for result in results.values():
             if result.get("sport") != sport or result.get("version") != version or result.get("group") != group_name:
                 continue
-            t1, t2 = result.get("team1", ""), result.get("team2", "")
+            t1 = canonical_team_name(data, sport, version, group_name, result.get("team1", ""))
+            t2 = canonical_team_name(data, sport, version, group_name, result.get("team2", ""))
             if t1 not in table or t2 not in table:
                 continue
             s1, s2 = int(result.get("score1", 0)), int(result.get("score2", 0))
@@ -419,11 +750,15 @@ def calculate_standings(data: Dict[str, Any], sport: str, version: str) -> Dict[
 
 
 def get_day_results_list(data: Dict[str, Any], day_name: str, sport: Optional[str] = None) -> List[Dict[str, Any]]:
-    rows = [r for r in data.get("results", {}).values() if r.get("day_name") == day_name]
+    rows = [dict(r) for r in data.get("results", {}).values() if r.get("day_name") == day_name]
     if sport:
         if sport not in SPORTS:
             raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
         rows = [r for r in rows if r.get("sport") == sport]
+    for r in rows:
+        r["team1"] = apply_team_override(data, r.get("team1", ""))
+        r["team2"] = apply_team_override(data, r.get("team2", ""))
+        r["match_text"] = apply_overrides_to_match_text(data, r.get("match_text", ""))
     rows.sort(key=lambda r: (str(r.get("sport", "")), str(r.get("match_time", "")), str(r.get("group", ""))))
     return rows
 
@@ -453,8 +788,14 @@ def send_push_to_all(title: str, body: str) -> int:
     return len(subscribers)
 
 
-async def sync_matches_loop():
+async def sync_google_sheets_loop():
     while True:
+        for key in SHEET_URLS:
+            try:
+                rows = await asyncio.to_thread(fetch_standings_once, key)
+                print(f"✅ Updated sheet groups/standings: {key} ({len(rows)} rows)")
+            except Exception as e:
+                print(f"❌ Error syncing standings {key}: {e}")
         for day in MATCHES_URLS:
             try:
                 rows = await asyncio.to_thread(fetch_matches_once, day)
@@ -469,7 +810,7 @@ async def sync_matches_loop():
 # =========================
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(sync_matches_loop())
+    asyncio.create_task(sync_google_sheets_loop())
 
 
 @app.get("/")
@@ -539,7 +880,8 @@ def get_standings(sport_name: str):
 
 @app.get("/matches/{day_name}")
 def get_matches(day_name: str):
-    return get_schedule_rows(day_name)
+    data = load_data()
+    return apply_overrides_to_match_rows(data, get_schedule_rows(day_name))
 
 
 @app.get("/day-results/{day_name}")
@@ -574,8 +916,13 @@ def get_admin_data(request: Request):
         "sport_labels": SPORT_LABELS,
         "version_labels": VERSION_LABELS,
         "day_labels": DAY_LABELS,
-        "groups": data.get("groups", {}),
-        "results": list(data.get("results", {}).values()),
+        "groups": get_all_effective_groups(data),
+        "groups_list": build_groups_list(data),
+        "manual_groups": data.get("groups", {}),
+        "team_name_overrides": get_team_overrides(data),
+        "group_overrides": data.get("group_overrides", {}),
+        "group_overrides_list": build_group_overrides_list(data),
+        "results": get_day_results_list(data, "Day1") + get_day_results_list(data, "Day2"),
         "finals": data.get("finals", {}),
         "visibility": data.get("visibility", DEFAULT_VISIBILITY.copy()),
     }
@@ -624,6 +971,84 @@ def delete_group(request: Request, sport: str = Query(...), version: str = Query
     # سيب النتائج محفوظة للرجوع، لكنها لن تؤثر على الترتيب لو المجموعة اتحذفت
     save_data(data)
     return {"status": "success", "message": "تم حذف المجموعة"}
+
+
+@app.post("/admin/group-override")
+def save_group_override(payload: GroupOverridePayload, request: Request):
+    require_admin(request)
+    sport = clean_team_name(payload.sport)
+    version = clean_team_name(payload.version)
+    action = clean_team_name(payload.action)
+    if sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    if version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="التاب غير صحيح")
+    if action not in ["add_team", "hide_team", "move_team", "hide_group"]:
+        raise HTTPException(status_code=400, detail="نوع التعديل غير صحيح")
+
+    record: Dict[str, Any] = {
+        "sport": sport,
+        "version": version,
+        "action": action,
+        "group": clean_team_name(payload.group),
+        "team": clean_team_name(payload.team),
+        "from_group": clean_team_name(payload.from_group),
+        "to_group": clean_team_name(payload.to_group),
+    }
+
+    if action == "add_team" and (not record["group"] or not record["team"]):
+        raise HTTPException(status_code=400, detail="اختار المجموعة واكتب اسم الفريق الجديد")
+    if action == "hide_team" and (not record["group"] or not record["team"]):
+        raise HTTPException(status_code=400, detail="اختار المجموعة والفريق اللي هيتشال")
+    if action == "move_team" and (not record["team"] or not record["to_group"]):
+        raise HTTPException(status_code=400, detail="اختار الفريق والمجموعة الجديدة")
+    if action == "hide_group" and not record["group"]:
+        raise HTTPException(status_code=400, detail="اختار المجموعة اللي هتتشال")
+
+    record["id"] = make_group_override_id(record)
+    record["created_at"] = datetime.utcnow().isoformat() + "Z"
+    data = load_data()
+    overrides = get_group_overrides(data, sport, version)
+    if not any(str(o.get("id")) == record["id"] for o in overrides):
+        overrides.append(record)
+    save_data(data)
+    return {"status": "success", "message": "تم حفظ تعديل المجموعات فوق الشيت", "override": record, "groups": get_effective_groups(data, sport, version)}
+
+
+@app.delete("/admin/group-override/{override_id}")
+def delete_group_override(override_id: str, request: Request):
+    require_admin(request)
+    data = load_data()
+    removed = False
+    for sport in SPORTS:
+        for version in ["1", "2"]:
+            overrides = get_group_overrides(data, sport, version)
+            before = len(overrides)
+            data["group_overrides"][sport][version] = [o for o in overrides if str(o.get("id")) != override_id]
+            if len(data["group_overrides"][sport][version]) != before:
+                removed = True
+    if not removed:
+        raise HTTPException(status_code=404, detail="التعديل غير موجود")
+    save_data(data)
+    return {"status": "success", "message": "تم حذف التعديل"}
+
+
+@app.delete("/admin/group-overrides")
+def reset_group_overrides(request: Request, sport: Optional[str] = Query(None), version: Optional[str] = Query(None)):
+    require_admin(request)
+    data = load_data()
+    if sport and sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    if version and version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="التاب غير صحيح")
+
+    sports_to_clear = [sport] if sport else SPORTS
+    versions_to_clear = [version] if version else ["1", "2"]
+    for s in sports_to_clear:
+        for v in versions_to_clear:
+            data.setdefault("group_overrides", {}).setdefault(s, {})[v] = []
+    save_data(data)
+    return {"status": "success", "message": "تم مسح تعديلات المجموعات والرجوع للشيت/البديل"}
 
 
 @app.get("/admin/available-schedule-matches")
@@ -690,6 +1115,56 @@ def delete_result(result_id: str, request: Request):
     del data["results"][result_id]
     save_data(data)
     return {"status": "success", "message": "تم حذف النتيجة والماتش رجع لقائمة التسجيل"}
+
+
+@app.post("/admin/team-name-override")
+def save_team_name_override(payload: TeamNameOverridePayload, request: Request):
+    require_admin(request)
+    old_name = clean_team_name(payload.old_name)
+    new_name = clean_team_name(payload.new_name)
+    if not old_name or not new_name:
+        raise HTTPException(status_code=400, detail="اكتب الاسم القديم والاسم الجديد")
+    data = load_data()
+    data.setdefault("team_name_overrides", {})
+    data["team_name_overrides"][old_name] = new_name
+    save_data(data)
+    return {"status": "success", "message": "تم حفظ استبدال الاسم. هيتطبق على المجموعات وجدول الماتشات والنتائج."}
+
+
+@app.delete("/admin/team-name-override")
+def delete_team_name_override(request: Request, old_name: str = Query(...)):
+    require_admin(request)
+    data = load_data()
+    overrides = data.setdefault("team_name_overrides", {})
+    found_key = None
+    for key in list(overrides.keys()):
+        if normalize_text(key) == normalize_text(old_name):
+            found_key = key
+            break
+    if not found_key:
+        raise HTTPException(status_code=404, detail="الاستبدال غير موجود")
+    del overrides[found_key]
+    save_data(data)
+    return {"status": "success", "message": "تم حذف استبدال الاسم"}
+
+
+@app.post("/admin/reload-sheets")
+def reload_sheets(request: Request):
+    require_admin(request)
+    standings_count = 0
+    matches_count = 0
+    errors = []
+    for key in SHEET_URLS:
+        try:
+            standings_count += len(fetch_standings_once(key))
+        except Exception as e:
+            errors.append(f"{key}: {e}")
+    for day in MATCHES_URLS:
+        try:
+            matches_count += len(fetch_matches_once(day))
+        except Exception as e:
+            errors.append(f"{day}: {e}")
+    return {"status": "success", "message": "تم تحديث بيانات الشيت", "standings_rows": standings_count, "matches_rows": matches_count, "errors": errors}
 
 
 @app.post("/admin/finals")
