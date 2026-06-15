@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لينكات الشيتات | War Zone</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.78);
+            --card-bg-2: rgba(15, 23, 42, 0.68);
+            --primary-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-orange: #f59e0b;
+            --danger: #f87171;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.12);
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), transparent 35%), var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 30px;
+            min-height: 100vh;
+        }
+        .page-title { text-align: center; color: var(--primary-blue); margin-bottom: 10px; }
+        .page-subtitle { text-align:center; color:var(--text-muted); margin:0 0 25px; line-height:1.8; }
+        .wrap { max-width: 1450px; margin: 0 auto; }
+        .grid { display:grid; grid-template-columns: 1fr; gap:22px; }
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 22px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
+        }
+        .card h2 { margin: 0 0 12px; color: var(--primary-blue); font-size: 1.35rem; }
+        .help { color: var(--text-muted); line-height: 1.8; margin-top: 0; font-size: 0.94rem; }
+        .top-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+        button, .btn-link {
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.98rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration:none;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+        }
+        button:hover, .btn-link:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(56, 189, 248, 0.22); }
+        button.secondary, .btn-link.secondary { background: linear-gradient(135deg, #334155, #1e293b); }
+        button.danger { background: linear-gradient(135deg, #dc2626, #991b1b); }
+        button.green { background: linear-gradient(135deg, #059669, #047857); }
+        input {
+            width: 100%;
+            padding: 12px 13px;
+            background: var(--card-bg-2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            direction: ltr;
+            text-align: left;
+        }
+        input:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12); }
+        .sheet-row {
+            display:grid;
+            grid-template-columns: 260px 1fr 105px;
+            gap: 12px;
+            align-items:center;
+            background: var(--card-bg-2);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 14px;
+            margin-bottom: 10px;
+        }
+        .sheet-label strong { display:block; color:var(--text-main); margin-bottom:4px; }
+        .sheet-label span { color:var(--text-muted); font-size:.82rem; direction:ltr; unicode-bidi:isolate; }
+        .status {
+            margin-top: 12px;
+            padding: 11px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            border: 1px solid transparent;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .success { background: rgba(52, 211, 153, 0.12); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3); }
+        .error { background: rgba(248, 113, 113, 0.12); color: var(--danger); border-color: rgba(248, 113, 113, 0.35); }
+        .warning-box {
+            background: rgba(245, 158, 11, .10);
+            border:1px solid rgba(245, 158, 11, .28);
+            color:#fde68a;
+            padding:13px;
+            border-radius:14px;
+            line-height:1.8;
+            margin-bottom:16px;
+        }
+        .hidden { display:none !important; }
+        #loginScreen { max-width: 520px; margin: 0 auto; }
+        @media (max-width: 850px) {
+            body { padding: 12px; }
+            .sheet-row { grid-template-columns: 1fr; }
+            .sheet-row button { width:100%; }
+        }
+    </style>
+</head>
+<body>
+    <h1 class="page-title">🔗 إدارة لينكات Google Sheets</h1>
+    <p class="page-subtitle">غير لينك أي شيت للمجموعات أو جداول الماتشات من غير تعديل الكود.</p>
+
+    <section class="card" id="loginScreen">
+        <h2>🔐 تسجيل دخول الأدمن</h2>
+        <p class="help">نفس باسورد لوحة التحكم.</p>
+        <form onsubmit="adminLogin(event)">
+            <input type="password" id="adminPassword" placeholder="Admin password" required style="direction:ltr; text-align:left; margin-bottom:12px;">
+            <button type="submit" style="width:100%;">دخول ✅</button>
+        </form>
+        <div id="loginStatus" class="status"></div>
+    </section>
+
+    <main class="wrap hidden" id="sheetsApp">
+        <div class="top-actions">
+            <a class="btn-link secondary" href="/admin">رجوع للوحة الأدمن 🏆</a>
+            <button class="green" onclick="saveLinks()">حفظ كل اللينكات ✅</button>
+            <button class="secondary" onclick="reloadSheets()">تحديث بيانات الشيت الآن 🔄</button>
+            <button class="danger" onclick="resetDefaults()">رجوع للينكات الأصلية</button>
+            <button class="danger" onclick="adminLogout()">تسجيل خروج</button>
+        </div>
+
+        <div class="warning-box">
+            لازم اللينك يكون CSV منشور من Google Sheets، يعني غالبًا آخره فيه <b>output=csv</b>. بعد ما تحفظ لينك جديد اضغط “تحديث بيانات الشيت الآن”.
+        </div>
+
+        <div class="grid">
+            <section class="card">
+                <h2>📊 شيتات المجموعات / الترتيب</h2>
+                <p class="help">كل لعبة لها لينك للمجموعات الأساسية، ولينك تاني للمجموعات 2. الشيت الواحد ممكن يحتوي أكتر من مجموعة A/B/C حسب عمود المجموعة.</p>
+                <div id="standingsLinks"></div>
+            </section>
+
+            <section class="card">
+                <h2>📅 شيتات جداول الماتشات</h2>
+                <p class="help">دي الجداول اللي بيظهر منها ماتشات اليوم الأول والثاني، وكمان الأدمن بيختار منها الماتش عند تسجيل النتيجة.</p>
+                <div id="matchLinks"></div>
+            </section>
+        </div>
+        <div id="mainStatus" class="status"></div>
+    </main>
+
+<script>
+let linksData = null;
+
+function setStatus(id, text, ok = true) {
+    const el = document.getElementById(id);
+    el.className = `status ${ok ? 'success' : 'error'}`;
+    el.innerText = text;
+    el.style.display = 'block';
+}
+
+async function apiJson(url, options = {}) {
+    const res = await fetch(url, options);
+    let data = null;
+    try { data = await res.json(); } catch(e) { data = {}; }
+    if (!res.ok) throw new Error(data.detail || data.message || 'حدث خطأ');
+    return data;
+}
+
+async function adminLogin(event) {
+    event.preventDefault();
+    try {
+        await apiJson('/admin/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({password: document.getElementById('adminPassword').value})
+        });
+        setStatus('loginStatus', 'تم تسجيل الدخول ✅');
+        await loadSheetLinks();
+    } catch (e) {
+        setStatus('loginStatus', e.message, false);
+    }
+}
+
+async function adminLogout() {
+    try { await apiJson('/admin/logout', {method:'POST'}); } catch(e) {}
+    document.getElementById('sheetsApp').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
+}
+
+function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function escapeAttr(value) { return escapeHtml(value).replace(/'/g, '&#39;'); }
+
+function renderLinks() {
+    const standingsBox = document.getElementById('standingsLinks');
+    const matchBox = document.getElementById('matchLinks');
+
+    standingsBox.innerHTML = Object.entries(linksData.standings || {}).map(([key, url]) => `
+        <div class="sheet-row">
+            <div class="sheet-label">
+                <strong>${escapeHtml((linksData.standings_labels || {})[key] || key)}</strong>
+                <span>${escapeHtml(key)}</span>
+            </div>
+            <input id="standing_${escapeAttr(key)}" data-kind="standings" data-key="${escapeAttr(key)}" value="${escapeAttr(url)}">
+            <button class="secondary" onclick="testOne('standing_${escapeAttr(key)}')">اختبار</button>
+        </div>
+    `).join('');
+
+    matchBox.innerHTML = Object.entries(linksData.matches || {}).map(([key, url]) => `
+        <div class="sheet-row">
+            <div class="sheet-label">
+                <strong>${escapeHtml((linksData.match_labels || {})[key] || key)}</strong>
+                <span>${escapeHtml(key)}</span>
+            </div>
+            <input id="match_${escapeAttr(key)}" data-kind="matches" data-key="${escapeAttr(key)}" value="${escapeAttr(url)}">
+            <button class="secondary" onclick="testOne('match_${escapeAttr(key)}')">اختبار</button>
+        </div>
+    `).join('');
+}
+
+async function loadSheetLinks() {
+    try {
+        linksData = await apiJson('/admin/sheet-links');
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('sheetsApp').classList.remove('hidden');
+        renderLinks();
+    } catch(e) {
+        document.getElementById('sheetsApp').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+    }
+}
+
+function collectLinks() {
+    const standings = {};
+    const matches = {};
+    document.querySelectorAll('input[data-kind]').forEach(input => {
+        const kind = input.dataset.kind;
+        const key = input.dataset.key;
+        if (kind === 'standings') standings[key] = input.value.trim();
+        if (kind === 'matches') matches[key] = input.value.trim();
+    });
+    return {standings, matches};
+}
+
+async function saveLinks() {
+    try {
+        const result = await apiJson('/admin/sheet-links', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(collectLinks())
+        });
+        setStatus('mainStatus', result.message || 'تم الحفظ ✅');
+        await loadSheetLinks();
+    } catch(e) {
+        setStatus('mainStatus', e.message, false);
+    }
+}
+
+async function testOne(inputId) {
+    const input = document.getElementById(inputId);
+    try {
+        const result = await apiJson('/admin/test-sheet-link', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({url: input.value.trim()})
+        });
+        setStatus('mainStatus', `✅ ${result.message}\nRows: ${result.rows}\nColumns: ${(result.columns || []).join(' | ')}`);
+    } catch(e) {
+        setStatus('mainStatus', e.message, false);
+    }
+}
+
+async function reloadSheets() {
+    try {
+        const result = await apiJson('/admin/reload-sheets', {method:'POST'});
+        const errors = (result.errors || []).length ? `\nErrors:\n${result.errors.join('\n')}` : '';
+        setStatus('mainStatus', `${result.message}\nStandings rows: ${result.standings_rows}\nMatches rows: ${result.matches_rows}${errors}`, !(result.errors || []).length);
+    } catch(e) {
+        setStatus('mainStatus', e.message, false);
+    }
+}
+
+async function resetDefaults() {
+    if (!confirm('متأكد إنك عايز ترجع كل لينكات الشيتات للأصل؟')) return;
+    try {
+        const result = await apiJson('/admin/sheet-links/reset', {method:'POST'});
+        setStatus('mainStatus', result.message || 'تم الرجوع للأصل ✅');
+        await loadSheetLinks();
+    } catch(e) {
+        setStatus('mainStatus', e.message, false);
+    }
+}
+
+window.addEventListener('load', loadSheetLinks);
+</script>
+</body>
+</html>
