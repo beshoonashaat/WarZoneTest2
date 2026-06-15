@@ -113,51 +113,9 @@
         }
         .check-line input { width: auto; transform: scale(1.25); }
         .full-width { grid-column: 1 / -1; }
-
-        .login-screen {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            background: radial-gradient(circle at top, rgba(56,189,248,.18), transparent 35%), #020617;
-        }
-        .login-box {
-            width: 100%;
-            max-width: 420px;
-            background: rgba(15, 23, 42, .92);
-            border: 1px solid var(--border-color);
-            border-radius: 24px;
-            padding: 28px;
-            box-shadow: 0 30px 80px rgba(0,0,0,.55);
-        }
-        .login-box h2 { color: var(--primary-blue); margin-top: 0; text-align: center; }
-        .admin-header {
-            max-width: 1450px;
-            margin: 0 auto 22px;
-            display: flex;
-            gap: 12px;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .admin-header .page-title { margin: 0; }
-        .logout-btn { width: auto; padding: 10px 16px; background: linear-gradient(135deg, #334155, #1e293b); }
-        .mini-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .mini-actions button { padding: 8px; font-size: .9rem; }
-        .edit-mode-banner {
-            display: none;
-            margin: 0 0 14px;
-            padding: 12px;
-            border-radius: 12px;
-            background: rgba(245, 158, 11, .12);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, .32);
-            line-height: 1.7;
-        }
-        .inline-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .hidden { display: none !important; }
+        .top-actions { max-width:1450px; margin:0 auto 18px; display:flex; justify-content:flex-start; gap:10px; }
+        .top-actions button { width:auto; padding:10px 18px; }
 
         @media (max-width: 720px) {
             body { padding: 12px; }
@@ -167,28 +125,27 @@
     </style>
 </head>
 <body>
-    <div id="loginScreen" class="login-screen">
-        <div class="login-box">
-            <h2>🔐 دخول الأدمن</h2>
-            <p class="help" style="text-align:center; color: var(--text-muted);">اكتب باسورد لوحة التحكم عشان تكمل.</p>
-            <form onsubmit="loginAdmin(event)">
-                <div class="form-group">
-                    <label>كلمة السر</label>
-                    <input type="password" id="adminPassword" placeholder="Password" autocomplete="current-password" required>
-                </div>
-                <button type="submit">دخول ✅</button>
-            </form>
-            <div id="loginStatus" class="status"></div>
-        </div>
+    <h1 class="page-title">🏆 لوحة تحكم War Zone</h1>
+
+    <section class="card" id="loginScreen" style="max-width:520px; margin: 0 auto;">
+        <h2>🔐 تسجيل دخول الأدمن</h2>
+        <p class="help">ادخل باسورد الأدمن عشان تفتح لوحة التحكم.</p>
+        <form onsubmit="adminLogin(event)">
+            <div class="form-group">
+                <label>كلمة السر</label>
+                <input type="password" id="adminPassword" placeholder="Admin password" required>
+            </div>
+            <button type="submit">دخول ✅</button>
+        </form>
+        <div id="loginStatus" class="status"></div>
+    </section>
+
+    <div class="top-actions hidden" id="adminTopActions">
+        <button class="secondary" onclick="reloadSheets()">تحديث بيانات الشيت الآن 🔄</button>
+        <button class="danger" onclick="adminLogout()">تسجيل خروج</button>
     </div>
 
-    <div id="adminContent" style="display:none;">
-        <div class="admin-header">
-            <h1 class="page-title">🏆 لوحة تحكم War Zone</h1>
-            <button class="logout-btn" onclick="logoutAdmin()">تسجيل خروج</button>
-        </div>
-
-    <div class="grid">
+    <div class="grid hidden" id="adminGrid">
         <section class="card">
             <h2>📣 إرسال إشعار للمشتركين</h2>
             <p class="help">استخدمها لأي إعلان عام غير نتيجة الماتش.</p>
@@ -207,8 +164,8 @@
         </section>
 
         <section class="card">
-            <h2>👥 إضافة / تعديل مجموعة</h2>
-            <p class="help">اكتب فرق المجموعة هنا. الترتيب بيتحسب من النتائج اللي بتدخلها في الأدمن.</p>
+            <h2>👥 حل بديل: إضافة / تعديل مجموعة يدويًا</h2>
+            <p class="help">المصدر الأساسي للمجموعات دلوقتي Google Sheets. استخدم الجزء ده بس لو الشيت فاضي أو مش متاح.</p>
             <form onsubmit="saveGroup(event)">
                 <div class="form-row">
                     <div class="form-group">
@@ -237,10 +194,81 @@
             <div class="groups-list" id="groupsList"></div>
         </section>
 
+        <section class="card">
+            <h2>🔁 استبدال أسماء الفرق من الشيت</h2>
+            <p class="help">مثال: لو الشيت كاتب الفريق "1" أو "فريق 1"، اكتب الاسم القديم 1 والاسم الجديد الحقيقي. الاستبدال هيظهر في المجموعات وجدول الماتشات والنتائج.</p>
+            <form onsubmit="saveTeamNameOverride(event)">
+                <div class="form-group">
+                    <label>الاسم القديم في الشيت</label>
+                    <input type="text" id="aliasOldName" placeholder="مثال: 1 أو فريق 1" required>
+                </div>
+                <div class="form-group">
+                    <label>الاسم الجديد اللي يظهر للناس</label>
+                    <input type="text" id="aliasNewName" placeholder="مثال: Team Beshoo" required>
+                </div>
+                <button type="submit">حفظ الاستبدال ✅</button>
+            </form>
+            <div id="aliasStatus" class="status"></div>
+            <div class="groups-list" id="aliasesList"></div>
+        </section>
+
+        <section class="card full-width">
+            <h2>🧩 تحكم كامل في المجموعات فوق الشيت</h2>
+            <p class="help">المجموعات هتفضل جاية من Google Sheets كمصدر أساسي، والتعديلات هنا بتتركب فوقها: إضافة فريق، إخفاء فريق، نقل فريق، أو إخفاء مجموعة كاملة. لو حبيت ترجع للشيت الأصلي امسح التعديلات.</p>
+            <form onsubmit="saveGroupOverride(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>اللعبة</label>
+                        <select id="overrideSport" onchange="updateGroupOverrideControls()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>التاب</label>
+                        <select id="overrideVersion" onchange="updateGroupOverrideControls()">
+                            <option value="1">المجموعات</option>
+                            <option value="2">المجموعات 2</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>نوع التعديل</label>
+                        <select id="overrideAction" onchange="updateGroupOverrideMode()">
+                            <option value="add_team">إضافة فريق فوق الشيت</option>
+                            <option value="hide_team">إخفاء / حذف فريق من العرض</option>
+                            <option value="move_team">نقل فريق لمجموعة أخرى</option>
+                            <option value="hide_group">إخفاء / حذف مجموعة كاملة</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label id="overrideGroupLabel">المجموعة</label>
+                        <input type="text" id="overrideGroup" list="overrideGroupList" placeholder="مثال: A" onchange="updateOverrideTeamList()">
+                        <datalist id="overrideGroupList"></datalist>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" id="overrideTeamWrap">
+                        <label id="overrideTeamLabel">الفريق</label>
+                        <input type="text" id="overrideTeam" list="overrideTeamList" placeholder="اختار أو اكتب اسم الفريق">
+                        <datalist id="overrideTeamList"></datalist>
+                    </div>
+                    <div class="form-group" id="overrideToGroupWrap">
+                        <label>المجموعة الجديدة</label>
+                        <input type="text" id="overrideToGroup" list="overrideGroupList" placeholder="مثال: B">
+                    </div>
+                </div>
+                <button type="submit">تطبيق التعديل على المجموعات ✅</button>
+            </form>
+            <div id="groupOverrideStatus" class="status"></div>
+            <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                <button class="secondary" style="width:auto; padding:10px 14px;" onclick="resetCurrentGroupOverrides()">رجّع اللعبة/التاب ده للشيت الأصلي</button>
+                <button class="danger" style="width:auto; padding:10px 14px;" onclick="resetAllGroupOverrides()">مسح كل تعديلات المجموعات</button>
+            </div>
+            <div class="groups-list" id="groupOverridesList"></div>
+        </section>
+
         <section class="card full-width">
             <h2>⚽ تسجيل نتيجة من جدول الماتشات</h2>
             <p class="help">الماتشات هنا جاية من Google Sheets القديمة. بعد حفظ النتيجة، الماتش يتشال من القائمة وبيظهر في تاب نتائج اليوم.</p>
-            <div id="editModeBanner" class="edit-mode-banner"></div>
             <form onsubmit="saveResult(event)">
                 <div class="form-row">
                     <div class="form-group">
@@ -296,10 +324,7 @@
                     <span>ابعت إشعار بالنتيجة</span>
                     <input type="checkbox" id="notifyResult" checked>
                 </label>
-                <div class="inline-actions">
-                    <button type="submit" id="resultSubmitBtn">حفظ النتيجة وتحديث الترتيب ✅</button>
-                    <button type="button" class="secondary" onclick="cancelEditResult()">إلغاء التعديل</button>
-                </div>
+                <button type="submit">حفظ النتيجة وتحديث الترتيب ✅</button>
             </form>
             <div id="resultStatus" class="status"></div>
             <div class="results-list" id="recentResults"></div>
@@ -345,13 +370,11 @@
             <div id="visibilityStatus" class="status"></div>
         </section>
     </div>
-    </div>
 
 <script>
 let adminData = null;
 let availableMatches = [];
 let selectedMatch = null;
-let editModeId = null;
 
 const VISIBILITY_LABELS = {
     groups: 'المجموعات',
@@ -370,46 +393,10 @@ function setStatus(id, text, ok = true) {
     el.style.display = 'block';
 }
 
-function showLogin() {
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('adminContent').style.display = 'none';
-    setTimeout(() => document.getElementById('adminPassword')?.focus(), 100);
-}
-
-function showAdmin() {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('adminContent').style.display = 'block';
-}
-
-async function loginAdmin(event) {
-    event.preventDefault();
-    try {
-        await apiJson('/admin/login', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({password: document.getElementById('adminPassword').value})
-        });
-        document.getElementById('adminPassword').value = '';
-        document.getElementById('loginStatus').style.display = 'none';
-        await loadAdminData();
-    } catch(e) {
-        setStatus('loginStatus', e.message || 'كلمة السر غير صحيحة', false);
-    }
-}
-
-async function logoutAdmin() {
-    try { await apiJson('/admin/logout', {method:'POST'}); } catch(e) {}
-    showLogin();
-}
-
 async function apiJson(url, options = {}) {
     const res = await fetch(url, options);
     let data = null;
     try { data = await res.json(); } catch(e) { data = {}; }
-    if (res.status === 401) {
-        showLogin();
-        throw new Error(data.detail || 'محتاج تسجل دخول للأدمن');
-    }
     if (!res.ok) throw new Error(data.detail || data.message || 'حدث خطأ');
     return data;
 }
@@ -421,9 +408,14 @@ function fillSportsSelect(id) {
 
 async function loadAdminData() {
     adminData = await apiJson('/admin-data');
-    showAdmin();
-    ['groupSport', 'resultSport', 'finalSport'].forEach(fillSportsSelect);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('adminGrid').classList.remove('hidden');
+    document.getElementById('adminTopActions').classList.remove('hidden');
+    ['groupSport', 'overrideSport', 'resultSport', 'finalSport'].forEach(fillSportsSelect);
     renderGroupsList();
+    renderAliasList();
+    renderGroupOverridesList();
+    updateGroupOverrideControls();
     renderRecentResults();
     renderVisibilityControls();
     loadGroupsForResult();
@@ -433,22 +425,189 @@ async function loadAdminData() {
 
 function renderGroupsList() {
     const box = document.getElementById('groupsList');
-    const groups = adminData.groups || {};
-    let html = '';
-    for (const sport of adminData.sports) {
-        for (const version of ['1','2']) {
-            const versionGroups = (groups[sport] && groups[sport][version]) || {};
-            for (const groupName of Object.keys(versionGroups)) {
-                const teams = versionGroups[groupName] || [];
-                html += `<div class="item">
-                    <strong>${adminData.sport_labels[sport]} / ${adminData.version_labels[version]} / المجموعة ${groupName}</strong><br>
-                    ${teams.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join('')}
-                    <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteGroup('${sport}','${version}','${escapeAttr(groupName)}')">حذف المجموعة</button>
-                </div>`;
-            }
-        }
+    const items = adminData.groups_list || [];
+    if (!items.length) {
+        box.innerHTML = '<div class="muted-box">لسه مفيش مجموعات من الشيت أو من الحل البديل.</div>';
+        return;
     }
-    box.innerHTML = html || '<div class="muted-box">لسه مفيش مجموعات محفوظة.</div>';
+    box.innerHTML = items.map(item => {
+        const canDelete = item.source === 'manual';
+        return `<div class="item">
+            <strong>${escapeHtml(item.sport_label)} / ${escapeHtml(item.version_label)} / المجموعة ${escapeHtml(item.group)}</strong><br>
+            <span class="pill">${escapeHtml(item.source_label)}</span><br>
+            ${(item.teams || []).map(t => `<span class="pill">${escapeHtml(t)}</span>`).join('')}
+            ${canDelete ? `<button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteGroup('${escapeAttr(item.sport)}','${escapeAttr(item.version)}','${escapeAttr(item.group)}')">حذف المجموعة اليدوية</button>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function renderAliasList() {
+    const box = document.getElementById('aliasesList');
+    const aliases = adminData.team_name_overrides || {};
+    const entries = Object.entries(aliases);
+    if (!entries.length) {
+        box.innerHTML = '<div class="muted-box">لسه مفيش استبدالات أسماء محفوظة.</div>';
+        return;
+    }
+    box.innerHTML = entries.map(([oldName, newName]) => `<div class="item">
+        <strong>${escapeHtml(oldName)}</strong> ⟵ <span class="pill">${escapeHtml(newName)}</span>
+        <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteTeamNameOverride('${escapeAttr(oldName)}')">حذف الاستبدال</button>
+    </div>`).join('');
+}
+
+
+function getOverrideGroups() {
+    if (!adminData) return {};
+    const sport = document.getElementById('overrideSport')?.value || adminData.sports?.[0];
+    const version = document.getElementById('overrideVersion')?.value || '1';
+    return (((adminData.groups || {})[sport] || {})[version]) || {};
+}
+
+function updateGroupOverrideControls() {
+    if (!adminData || !document.getElementById('overrideSport')) return;
+    const groups = getOverrideGroups();
+    const groupNames = Object.keys(groups);
+    document.getElementById('overrideGroupList').innerHTML = groupNames.map(g => `<option value="${escapeAttr(g)}"></option>`).join('');
+    const groupInput = document.getElementById('overrideGroup');
+    if (!groupInput.value && groupNames.length) groupInput.value = groupNames[0];
+    if (groupInput.value && !groups[groupInput.value] && groupNames.length) groupInput.value = groupNames[0];
+    updateOverrideTeamList();
+    updateGroupOverrideMode();
+}
+
+function updateOverrideTeamList() {
+    if (!adminData || !document.getElementById('overrideTeamList')) return;
+    const groups = getOverrideGroups();
+    const groupName = document.getElementById('overrideGroup').value.trim();
+    const teams = groups[groupName] || [];
+    document.getElementById('overrideTeamList').innerHTML = teams.map(t => `<option value="${escapeAttr(t)}"></option>`).join('');
+}
+
+function updateGroupOverrideMode() {
+    const action = document.getElementById('overrideAction')?.value;
+    if (!action) return;
+    const teamWrap = document.getElementById('overrideTeamWrap');
+    const toGroupWrap = document.getElementById('overrideToGroupWrap');
+    const groupLabel = document.getElementById('overrideGroupLabel');
+    const teamLabel = document.getElementById('overrideTeamLabel');
+    teamWrap.classList.remove('hidden');
+    toGroupWrap.classList.add('hidden');
+    groupLabel.innerText = 'المجموعة';
+    teamLabel.innerText = 'الفريق';
+
+    if (action === 'add_team') {
+        groupLabel.innerText = 'المجموعة اللي هتضيف فيها';
+        teamLabel.innerText = 'اسم الفريق الجديد';
+        document.getElementById('overrideTeam').placeholder = 'مثال: Team Beshoo';
+    } else if (action === 'hide_team') {
+        groupLabel.innerText = 'المجموعة';
+        teamLabel.innerText = 'الفريق اللي هيتشال من العرض';
+        document.getElementById('overrideTeam').placeholder = 'اختار الفريق من القائمة أو اكتبه';
+    } else if (action === 'move_team') {
+        groupLabel.innerText = 'المجموعة الحالية';
+        teamLabel.innerText = 'الفريق اللي هيتنقل';
+        toGroupWrap.classList.remove('hidden');
+        document.getElementById('overrideTeam').placeholder = 'اختار الفريق اللي هيتنقل';
+    } else if (action === 'hide_group') {
+        groupLabel.innerText = 'المجموعة اللي هتتشال من العرض';
+        teamWrap.classList.add('hidden');
+        toGroupWrap.classList.add('hidden');
+    }
+}
+
+function renderGroupOverridesList() {
+    const box = document.getElementById('groupOverridesList');
+    if (!box) return;
+    const items = adminData.group_overrides_list || [];
+    if (!items.length) {
+        box.innerHTML = '<div class="muted-box">لسه مفيش تعديلات فوق الشيت. المعروض حاليًا هو الشيت الأساسي أو الحل البديل اليدوي.</div>';
+        return;
+    }
+    box.innerHTML = items.slice().reverse().map(item => {
+        let details = '';
+        if (item.action === 'add_team') details = `إضافة <span class="pill">${escapeHtml(item.team)}</span> في المجموعة <span class="pill">${escapeHtml(item.group)}</span>`;
+        else if (item.action === 'hide_team') details = `إخفاء <span class="pill">${escapeHtml(item.team)}</span> من المجموعة <span class="pill">${escapeHtml(item.group)}</span>`;
+        else if (item.action === 'move_team') details = `نقل <span class="pill">${escapeHtml(item.team)}</span> من <span class="pill">${escapeHtml(item.from_group || item.group || 'أي مجموعة')}</span> إلى <span class="pill">${escapeHtml(item.to_group)}</span>`;
+        else if (item.action === 'hide_group') details = `إخفاء المجموعة <span class="pill">${escapeHtml(item.group)}</span>`;
+        return `<div class="item">
+            <strong>${escapeHtml(item.sport_label)} / ${escapeHtml(item.version_label)}</strong><br>
+            <span class="pill">${escapeHtml(item.action_label || item.action)}</span><br>
+            ${details}
+            <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteGroupOverride('${escapeAttr(item.id)}')">حذف التعديل</button>
+        </div>`;
+    }).join('');
+}
+
+async function saveGroupOverride(event) {
+    event.preventDefault();
+    try {
+        const action = document.getElementById('overrideAction').value;
+        const group = document.getElementById('overrideGroup').value.trim();
+        const payload = {
+            sport: document.getElementById('overrideSport').value,
+            version: document.getElementById('overrideVersion').value,
+            action,
+            group,
+            from_group: group,
+            team: document.getElementById('overrideTeam').value.trim(),
+            to_group: document.getElementById('overrideToGroup').value.trim()
+        };
+        const res = await apiJson('/admin/group-override', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+        });
+        setStatus('groupOverrideStatus', res.message || 'تم تطبيق التعديل');
+        document.getElementById('overrideTeam').value = '';
+        if (action === 'move_team') document.getElementById('overrideToGroup').value = '';
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        renderRecentResults();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { setStatus('groupOverrideStatus', e.message, false); }
+}
+
+async function deleteGroupOverride(id) {
+    if (!confirm('متأكد من حذف التعديل؟')) return;
+    try {
+        await apiJson(`/admin/group-override/${encodeURIComponent(id)}`, {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        renderRecentResults();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
+}
+
+async function resetCurrentGroupOverrides() {
+    const sport = document.getElementById('overrideSport').value;
+    const version = document.getElementById('overrideVersion').value;
+    if (!confirm('هتمسح تعديلات اللعبة/التاب ده وترجع للشيت الأصلي. متأكد؟')) return;
+    try {
+        await apiJson(`/admin/group-overrides?sport=${encodeURIComponent(sport)}&version=${encodeURIComponent(version)}`, {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
+}
+
+async function resetAllGroupOverrides() {
+    if (!confirm('هتمسح كل تعديلات المجموعات فوق الشيت لكل الألعاب. متأكد؟')) return;
+    try {
+        await apiJson('/admin/group-overrides', {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
 }
 
 function renderRecentResults() {
@@ -458,18 +617,12 @@ function renderRecentResults() {
         box.innerHTML = '<div class="muted-box">لسه مفيش نتائج محفوظة.</div>';
         return;
     }
-    box.innerHTML = results.slice().reverse().map(r => {
-        const id = r.id || r.schedule_key;
-        return `<div class="item">
-            <strong>${r.day_label || r.day_name} / ${r.sport_label || r.sport}</strong><br>
-            <span class="pill">${r.version_label || r.version}</span> <span class="pill">المجموعة ${escapeHtml(r.group)}</span><br>
-            ${escapeHtml(r.match_time || '')} ${escapeHtml(r.team1)} <strong>${r.score1} - ${r.score2}</strong> ${escapeHtml(r.team2)}
-            <div class="mini-actions">
-                <button class="secondary" onclick="startEditResult('${escapeAttr(id)}')">تعديل النتيجة</button>
-                <button class="danger" onclick="deleteResult('${escapeAttr(id)}')">حذف النتيجة</button>
-            </div>
-        </div>`;
-    }).join('');
+    box.innerHTML = results.slice().reverse().map(r => `<div class="item">
+        <strong>${r.day_label || r.day_name} / ${r.sport_label || r.sport}</strong><br>
+        <span class="pill">${r.version_label || r.version}</span> <span class="pill">المجموعة ${escapeHtml(r.group)}</span><br>
+        ${escapeHtml(r.match_time || '')} ${escapeHtml(r.team1)} <strong>${r.score1} - ${r.score2}</strong> ${escapeHtml(r.team2)}
+        <button class="danger" style="margin-top:10px; padding:8px;" onclick="deleteResult('${r.id || r.schedule_key}')">حذف النتيجة</button>
+    </div>`).join('');
 }
 
 function renderVisibilityControls() {
@@ -499,6 +652,8 @@ async function saveGroup(event) {
         setStatus('groupStatus', res.message || 'تم الحفظ');
         adminData = await apiJson('/admin-data');
         renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
         loadGroupsForResult();
         await loadAvailableMatches();
     } catch(e) { setStatus('groupStatus', e.message, false); }
@@ -510,8 +665,62 @@ async function deleteGroup(sport, version, group) {
         await apiJson(`/admin/group?sport=${encodeURIComponent(sport)}&version=${encodeURIComponent(version)}&group=${encodeURIComponent(group)}`, {method:'DELETE'});
         adminData = await apiJson('/admin-data');
         renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
         loadGroupsForResult();
         await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
+}
+
+
+async function saveTeamNameOverride(event) {
+    event.preventDefault();
+    try {
+        const payload = {
+            old_name: document.getElementById('aliasOldName').value.trim(),
+            new_name: document.getElementById('aliasNewName').value.trim()
+        };
+        const res = await apiJson('/admin/team-name-override', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+        });
+        setStatus('aliasStatus', res.message || 'تم حفظ الاستبدال');
+        document.getElementById('aliasOldName').value = '';
+        document.getElementById('aliasNewName').value = '';
+        adminData = await apiJson('/admin-data');
+        renderAliasList();
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { setStatus('aliasStatus', e.message, false); }
+}
+
+async function deleteTeamNameOverride(oldName) {
+    if (!confirm('متأكد من حذف استبدال الاسم؟')) return;
+    try {
+        await apiJson(`/admin/team-name-override?old_name=${encodeURIComponent(oldName)}`, {method:'DELETE'});
+        adminData = await apiJson('/admin-data');
+        renderAliasList();
+        renderGroupsList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+    } catch(e) { alert(e.message); }
+}
+
+async function reloadSheets() {
+    try {
+        const res = await apiJson('/admin/reload-sheets', {method:'POST'});
+        adminData = await apiJson('/admin-data');
+        renderGroupsList();
+        renderAliasList();
+        renderGroupOverridesList();
+        updateGroupOverrideControls();
+        loadGroupsForResult();
+        await loadAvailableMatches();
+        alert(res.message || 'تم التحديث');
     } catch(e) { alert(e.message); }
 }
 
@@ -547,9 +756,6 @@ async function loadAvailableMatches() {
 }
 
 function fillMatchData() {
-    editModeId = null;
-    document.getElementById('resultSubmitBtn').innerText = 'حفظ النتيجة وتحديث الترتيب ✅';
-    document.getElementById('editModeBanner').style.display = 'none';
     const idx = document.getElementById('resultMatch').value;
     selectedMatch = availableMatches[idx] || null;
     if (!selectedMatch) return;
@@ -586,53 +792,13 @@ async function saveResult(event) {
         const res = await apiJson('/admin/result', {
             method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
         });
-        setStatus('resultStatus', editModeId ? 'تم تعديل النتيجة وإعادة حساب الترتيب ✅' : (res.message || 'تم حفظ النتيجة'));
-        editModeId = null;
-        document.getElementById('resultSubmitBtn').innerText = 'حفظ النتيجة وتحديث الترتيب ✅';
-        document.getElementById('editModeBanner').style.display = 'none';
+        setStatus('resultStatus', res.message || 'تم حفظ النتيجة');
         document.getElementById('score1').value = 0;
         document.getElementById('score2').value = 0;
         adminData = await apiJson('/admin-data');
         renderRecentResults();
         await loadAvailableMatches();
     } catch(e) { setStatus('resultStatus', e.message, false); }
-}
-
-function startEditResult(id) {
-    const r = (adminData.results || []).find(x => String(x.id || x.schedule_key) === String(id));
-    if (!r) return alert('النتيجة غير موجودة');
-    editModeId = id;
-    selectedMatch = {
-        schedule_key: id,
-        match_time: r.match_time || '',
-        match_text: r.match_text || ''
-    };
-    document.getElementById('resultDay').value = r.day_name || 'Day1';
-    document.getElementById('resultSport').value = r.sport || 'Football';
-    document.getElementById('resultVersion').value = r.version || '1';
-    loadGroupsForResult();
-    document.getElementById('resultGroup').value = r.group || '';
-    document.getElementById('team1').value = r.team1 || '';
-    document.getElementById('team2').value = r.team2 || '';
-    document.getElementById('score1').value = r.score1 ?? 0;
-    document.getElementById('score2').value = r.score2 ?? 0;
-    document.getElementById('notifyResult').checked = false;
-    document.getElementById('resultMatch').innerHTML = `<option value="edit">تعديل نتيجة محفوظة: ${escapeHtml(r.team1)} ${escapeHtml(r.score1)} - ${escapeHtml(r.score2)} ${escapeHtml(r.team2)}</option>`;
-    document.getElementById('resultSubmitBtn').innerText = 'تعديل النتيجة وإعادة حساب الترتيب ✅';
-    const banner = document.getElementById('editModeBanner');
-    banner.innerText = 'أنت الآن بتعدل نتيجة محفوظة. بعد الحفظ، الترتيب هيتحسب من جديد.';
-    banner.style.display = 'block';
-    window.scrollTo({top: document.getElementById('resultMatch').getBoundingClientRect().top + window.scrollY - 120, behavior:'smooth'});
-}
-
-async function cancelEditResult() {
-    editModeId = null;
-    selectedMatch = null;
-    document.getElementById('resultSubmitBtn').innerText = 'حفظ النتيجة وتحديث الترتيب ✅';
-    document.getElementById('editModeBanner').style.display = 'none';
-    document.getElementById('score1').value = 0;
-    document.getElementById('score2').value = 0;
-    await loadAvailableMatches();
 }
 
 async function deleteResult(id) {
@@ -702,13 +868,38 @@ async function sendPushNotification(event) {
     finally { btn.disabled = false; btn.innerText = 'إرسال الإشعار فوراً 🚀'; }
 }
 
+
+async function adminLogin(event) {
+    event.preventDefault();
+    try {
+        await apiJson('/admin/login', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({password: document.getElementById('adminPassword').value})
+        });
+        setStatus('loginStatus', 'تم تسجيل الدخول ✅');
+        await loadAdminData();
+    } catch(e) { setStatus('loginStatus', e.message, false); }
+}
+
+async function adminLogout() {
+    try { await apiJson('/admin/logout', {method:'POST'}); } catch(e) {}
+    document.getElementById('adminGrid').classList.add('hidden');
+    document.getElementById('adminTopActions').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('adminPassword').value = '';
+}
+
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
 function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 
 window.addEventListener('load', () => {
-    loadAdminData().catch(() => showLogin());
+    loadAdminData().catch(() => {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('adminGrid').classList.add('hidden');
+        document.getElementById('adminTopActions').classList.add('hidden');
+    });
 });
 </script>
 </body>
