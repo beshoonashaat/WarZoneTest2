@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات القرعة | War Zone</title>
+    <style>
+        :root{--bg:#0f172a;--card:rgba(30,41,59,.78);--card2:rgba(15,23,42,.68);--cyan:#38bdf8;--green:#34d399;--orange:#f59e0b;--danger:#f87171;--text:#f8fafc;--muted:#94a3b8;--border:rgba(255,255,255,.12)}
+        *{box-sizing:border-box}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:radial-gradient(circle at top right,rgba(56,189,248,.16),transparent 35%),var(--bg);color:var(--text);margin:0;padding:28px;min-height:100vh}
+        .page-title{text-align:center;color:var(--cyan);margin:0 0 22px}
+        .top-actions{max-width:1450px;margin:0 auto 18px;display:flex;gap:10px;flex-wrap:wrap}.top-actions button{width:auto;padding:10px 18px}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:20px;max-width:1450px;margin:0 auto;align-items:start}
+        .card{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:22px;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,.28)}
+        h2{margin:0 0 12px;color:var(--cyan);font-size:1.35rem}.help{color:var(--muted);line-height:1.8;margin-top:0;font-size:.92rem}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-group{margin-bottom:15px}label{display:block;margin-bottom:7px;color:var(--muted);font-size:.92rem}
+        input,textarea,select{width:100%;padding:12px 13px;background:var(--card2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:1rem;outline:none}textarea{min-height:150px;resize:vertical;line-height:1.75}
+        input:focus,textarea:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+        button{width:100%;padding:13px;background:linear-gradient(135deg,#0284c7,#0369a1);color:white;border:none;border-radius:12px;font-size:1rem;font-weight:bold;cursor:pointer;transition:.2s}button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(56,189,248,.22)}
+        button.secondary{background:linear-gradient(135deg,#334155,#1e293b)}button.green{background:linear-gradient(135deg,#059669,#047857)}button.orange{background:linear-gradient(135deg,#d97706,#b45309)}button.danger{background:linear-gradient(135deg,#dc2626,#991b1b)}
+        .status{margin-top:12px;padding:11px;border-radius:10px;text-align:center;display:none;border:1px solid transparent;line-height:1.7}.success{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3)}.error{background:rgba(248,113,113,.12);color:var(--danger);border-color:rgba(248,113,113,.35)}
+        .muted-box{background:var(--card2);border:1px solid var(--border);padding:12px;border-radius:12px;color:var(--muted);line-height:1.8;font-size:.9rem}.hidden{display:none!important}
+        .check-list{max-height:330px;overflow:auto;display:grid;gap:9px;margin-top:10px}.check-line{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;background:var(--card2);border:1px solid var(--border);padding:10px;border-radius:12px}.check-line input{width:auto;transform:scale(1.2);margin-top:5px}.check-main{flex:1}.check-title{font-weight:800;color:var(--text)}.check-sub{font-size:.82rem;color:var(--muted);margin-top:4px;line-height:1.5}
+        .toolbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.pill{display:inline-block;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.25);color:var(--cyan);border-radius:999px;padding:3px 9px;font-size:.82rem;margin:3px}.pill.green{color:var(--green);background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.26)}.pill.orange{color:var(--orange);background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3)}
+        table{width:100%;border-collapse:collapse;margin-top:12px;overflow:hidden;border-radius:12px}th,td{padding:11px;border-bottom:1px solid var(--border);text-align:center}th{background:rgba(56,189,248,.12);color:var(--cyan)}tr:hover td{background:rgba(255,255,255,.03)}
+        @media(max-width:720px){body{padding:12px}.grid,.form-row{grid-template-columns:1fr}.top-actions button{width:100%}}
+    </style>
+</head>
+<body>
+<h1 class="page-title">🎲 إعدادات القرعة</h1>
+
+<section class="card" id="loginScreen" style="max-width:520px;margin:0 auto">
+    <h2>🔐 تسجيل دخول الأدمن</h2>
+    <p class="help">نفس باسورد لوحة التحكم.</p>
+    <form onsubmit="adminLogin(event)">
+        <div class="form-group"><label>كلمة السر</label><input type="password" id="adminPassword" placeholder="Admin password" required></div>
+        <button type="submit">دخول ✅</button>
+    </form>
+    <div id="loginStatus" class="status"></div>
+</section>
+
+<div class="top-actions hidden" id="topActions">
+    <button class="secondary" onclick="window.location.href='/admin'">لوحة الأدمن 🏆</button>
+    <button class="secondary" onclick="window.location.href='/sheets'">لينكات الشيتات 🔗</button>
+    <button class="secondary" onclick="window.open('/draw','_blank')">فتح صفحة القرعة للجمهور ✨</button>
+    <button class="danger" onclick="adminLogout()">تسجيل خروج</button>
+</div>
+
+<div class="grid hidden" id="settingsGrid">
+    <section class="card">
+        <h2>1) اختيار قرعة اللعبة</h2>
+        <p class="help">اختار اللعبة والتاب اللي فيه الأرقام الموجودة في الشيت. بعد السحب، الأرقام هتتبدل بأسماء الفرق في المجموعات وجدول الماتشات.</p>
+        <div class="form-row">
+            <div class="form-group"><label>اللعبة</label><select id="sportSelect" onchange="loadDrawData()"></select></div>
+            <div class="form-group"><label>التاب</label><select id="versionSelect" onchange="loadDrawData()"><option value="1">المجموعات</option><option value="2">المجموعات 2</option></select></div>
+        </div>
+        <div class="form-group"><label>عنوان يظهر للجمهور</label><input id="drawTitle" placeholder="مثال: قرعة كرة القدم - اليوم الرياضي"></div>
+        <div class="toolbar">
+            <button type="button" class="secondary" onclick="selectAllPlaceholders(true)">اختيار الكل</button>
+            <button type="button" class="secondary" onclick="selectAllPlaceholders(false)">إلغاء الكل</button>
+            <button type="button" onclick="loadDrawData()">تحديث الخانات 🔄</button>
+        </div>
+        <div id="placeholdersBox" class="check-list"><div class="muted-box">جاري التحميل...</div></div>
+    </section>
+
+    <section class="card">
+        <h2>2) الفرق الداخلة في القرعة</h2>
+        <p class="help">اكتب اسم كل فريق في سطر. عدد الفرق لازم يساوي عدد الخانات المختارة.</p>
+        <div class="form-group"><label>أسماء الفرق</label><textarea id="teamsText" placeholder="Team A\nTeam B\nTeam C"></textarea></div>
+        <button class="green" onclick="saveDrawSetup()">حفظ إعدادات القرعة ✅</button>
+        <div id="setupStatus" class="status"></div>
+        <div class="muted-box" id="countBox" style="margin-top:12px">الخانات المختارة: 0 | الفرق المكتوبة: 0</div>
+    </section>
+
+    <section class="card">
+        <h2>3) التحكم في القرعة</h2>
+        <p class="help">كل زر هنا بيعمل Update مباشر في صفحة الجمهور /draw. عند سحب فريق، الاستبدال بيتحفظ تلقائيًا في الجداول.</p>
+        <div id="drawSummary" class="muted-box">لا توجد قرعة محفوظة.</div>
+        <div class="toolbar" style="margin-top:12px">
+            <button class="secondary" onclick="controlDraw('set_active')">تفعيل على صفحة العرض</button>
+            <button class="green" onclick="controlDraw('start')">ابدأ القرعة 🎬</button>
+            <button class="orange" onclick="controlDraw('reveal_next')">اسحب التالي 🎲</button>
+            <button onclick="controlDraw('shuffle_remaining')">اسحب الباقي كله ⚡</button>
+            <button class="danger" onclick="controlDraw('reset')">Reset القرعة</button>
+        </div>
+        <div id="controlStatus" class="status"></div>
+    </section>
+
+    <section class="card">
+        <h2>4) نتيجة القرعة الحالية</h2>
+        <div id="assignmentsBox" class="muted-box">لسه مفيش سحوبات.</div>
+    </section>
+</div>
+
+<script>
+let adminData = null;
+let currentDraw = null;
+let placeholderOptions = [];
+
+function showStatus(id, message, ok=true){
+    const el=document.getElementById(id); el.className='status '+(ok?'success':'error'); el.innerText=message; el.style.display='block';
+    setTimeout(()=>{el.style.display='none'}, ok ? 4500 : 7000);
+}
+async function apiJson(url, options={}){
+    const res = await fetch(url, {...options, headers:{'Content-Type':'application/json', ...(options.headers||{})}});
+    if(!res.ok){let msg='حدث خطأ'; try{const e=await res.json(); msg=e.detail||msg}catch{} throw new Error(msg)}
+    return res.json();
+}
+function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function linesFromTextarea(){return document.getElementById('teamsText').value.split('\n').map(x=>x.trim()).filter(Boolean)}
+function selectedPlaceholders(){return [...document.querySelectorAll('.phCheck:checked')].map(x=>x.value)}
+function updateCount(){document.getElementById('countBox').innerText=`الخانات المختارة: ${selectedPlaceholders().length} | الفرق المكتوبة: ${linesFromTextarea().length}`}
+
+async function adminLogin(event){
+    event.preventDefault();
+    try{await apiJson('/admin/login',{method:'POST',body:JSON.stringify({password:document.getElementById('adminPassword').value})}); showStatus('loginStatus','تم الدخول ✅'); await initPage();}
+    catch(e){showStatus('loginStatus',e.message,false)}
+}
+async function adminLogout(){await fetch('/admin/logout',{method:'POST'}); location.reload()}
+
+function fillSportSelect(){
+    const sel=document.getElementById('sportSelect');
+    sel.innerHTML=(adminData.sports||[]).map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(adminData.sport_labels[s]||s)}</option>`).join('');
+}
+function renderPlaceholders(){
+    const saved = new Set((currentDraw?.placeholders || []));
+    const shouldUseSaved = saved.size > 0;
+    const box=document.getElementById('placeholdersBox');
+    if(!placeholderOptions.length){box.innerHTML='<div class="muted-box">لا توجد خانات/أرقام متاحة من الشيت لهذه اللعبة.</div>'; return;}
+    box.innerHTML=placeholderOptions.map(item=>{
+        const checked = shouldUseSaved ? saved.has(item.name) : true;
+        const sub = [item.groups?.length ? 'المجموعات: '+item.groups.join(', ') : '', item.sources?.length ? item.sources.slice(0,2).join(' | ') : ''].filter(Boolean).join(' — ');
+        return `<label class="check-line"><div class="check-main"><div class="check-title">${escapeHtml(item.name)}</div><div class="check-sub">${escapeHtml(sub)}</div></div><input class="phCheck" type="checkbox" value="${escapeHtml(item.name)}" ${checked?'checked':''} onchange="updateCount()"></label>`;
+    }).join('');
+    updateCount();
+}
+function renderDraw(){
+    const d=currentDraw;
+    const summary=document.getElementById('drawSummary');
+    if(!d || !d.placeholders?.length){summary.innerHTML='لا توجد قرعة محفوظة لهذه اللعبة.'; document.getElementById('assignmentsBox').innerHTML='لسه مفيش سحوبات.'; return;}
+    const total=d.placeholders.length; const done=Object.keys(d.assignments||{}).length;
+    summary.innerHTML=`<span class="pill">${escapeHtml(d.sport_label||d.sport)}</span><span class="pill">${escapeHtml(d.version_label||d.version)}</span><span class="pill orange">الحالة: ${escapeHtml(d.status||'ready')}</span><br><br><strong>${escapeHtml(d.title||'قرعة')}</strong><br>تم السحب: ${done} / ${total}`;
+    document.getElementById('drawTitle').value=d.title||'';
+    if((d.teams||[]).length) document.getElementById('teamsText').value=d.teams.join('\n');
+    const rows=(d.placeholders||[]).map(ph=>`<tr><td>${escapeHtml(ph)}</td><td>${d.assignments?.[ph] ? escapeHtml(d.assignments[ph]) : '<span style="color:#94a3b8">لم يتم السحب</span>'}</td></tr>`).join('');
+    document.getElementById('assignmentsBox').innerHTML=rows?`<table><thead><tr><th>الخانة/الرقم</th><th>الفريق</th></tr></thead><tbody>${rows}</tbody></table>`:'لسه مفيش سحوبات.';
+    updateCount();
+}
+async function loadDrawData(){
+    const sport=document.getElementById('sportSelect').value || 'Football';
+    const version=document.getElementById('versionSelect').value || '1';
+    try{
+        const data=await apiJson(`/admin/draw-data?sport=${encodeURIComponent(sport)}&version=${encodeURIComponent(version)}`);
+        placeholderOptions=data.placeholders||[]; currentDraw=data.draw; renderPlaceholders(); renderDraw();
+    }catch(e){showStatus('setupStatus',e.message,false)}
+}
+function selectAllPlaceholders(val){document.querySelectorAll('.phCheck').forEach(x=>x.checked=val); updateCount()}
+async function saveDrawSetup(){
+    const payload={sport:document.getElementById('sportSelect').value,version:document.getElementById('versionSelect').value,title:document.getElementById('drawTitle').value,placeholders:selectedPlaceholders(),teams:linesFromTextarea()};
+    try{const res=await apiJson('/admin/draw/setup',{method:'POST',body:JSON.stringify(payload)}); currentDraw=res.draw; showStatus('setupStatus',res.message); renderDraw(); renderPlaceholders();}
+    catch(e){showStatus('setupStatus',e.message,false)}
+}
+async function controlDraw(action){
+    try{const res=await apiJson('/admin/draw/control',{method:'POST',body:JSON.stringify({sport:document.getElementById('sportSelect').value,version:document.getElementById('versionSelect').value,action})}); currentDraw=res.draw; showStatus('controlStatus',res.message); renderDraw(); renderPlaceholders();}
+    catch(e){showStatus('controlStatus',e.message,false)}
+}
+async function initPage(){
+    try{
+        adminData=await apiJson('/admin-data');
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('topActions').classList.remove('hidden');
+        document.getElementById('settingsGrid').classList.remove('hidden');
+        fillSportSelect(); await loadDrawData();
+    }catch(e){
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('topActions').classList.add('hidden');
+        document.getElementById('settingsGrid').classList.add('hidden');
+    }
+}
+document.getElementById('teamsText').addEventListener('input', updateCount);
+initPage();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>War Zone Draw</title>
+    <style>
+        :root {
+            --bg:#050b16;
+            --card:rgba(15,23,42,.78);
+            --card2:rgba(30,41,59,.72);
+            --cyan:#38bdf8;
+            --green:#34d399;
+            --orange:#f59e0b;
+            --red:#f87171;
+            --text:#f8fafc;
+            --muted:#94a3b8;
+            --border:rgba(255,255,255,.12);
+        }
+        *{box-sizing:border-box}
+        body{
+            margin:0;
+            min-height:100vh;
+            font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+            background:
+                radial-gradient(circle at 15% 15%,rgba(56,189,248,.20),transparent 30%),
+                radial-gradient(circle at 85% 85%,rgba(245,158,11,.16),transparent 32%),
+                linear-gradient(135deg,#020617,#0f172a 55%,#020617);
+            color:var(--text);
+            overflow-x:hidden;
+        }
+        .noise:before{
+            content:"";
+            position:fixed; inset:0;
+            pointer-events:none;
+            background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+            background-size:46px 46px;
+            mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent 90%);
+        }
+        header{
+            text-align:center;
+            padding:46px 18px 18px;
+            position:relative;
+        }
+        .badge{
+            display:inline-flex; gap:8px; align-items:center;
+            border:1px solid rgba(56,189,248,.35);
+            background:rgba(56,189,248,.10);
+            color:var(--cyan);
+            padding:8px 16px;
+            border-radius:999px;
+            font-weight:800;
+            letter-spacing:.5px;
+        }
+        h1{
+            margin:18px 0 8px;
+            font-size:clamp(2.1rem,6vw,5.2rem);
+            line-height:1.05;
+            text-shadow:0 0 30px rgba(56,189,248,.35);
+        }
+        .sub{color:var(--muted);font-size:clamp(1rem,2vw,1.35rem)}
+        main{max-width:1250px;margin:0 auto;padding:20px 18px 60px;position:relative;z-index:1}
+        .status-card{
+            display:grid;
+            grid-template-columns:1.2fr .8fr;
+            gap:18px;
+            margin-bottom:22px;
+        }
+        .panel{
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:28px;
+            padding:24px;
+            box-shadow:0 24px 70px rgba(0,0,0,.35);
+            backdrop-filter:blur(14px);
+        }
+        .title-line{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+        .draw-title{font-size:1.7rem;font-weight:900;color:var(--text)}
+        .pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:6px 12px;font-size:.9rem;font-weight:800;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.28);color:var(--green)}
+        .pill.orange{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:var(--orange)}
+        .progress-wrap{margin-top:18px}
+        .progress-info{display:flex;justify-content:space-between;color:var(--muted);font-size:.95rem;margin-bottom:8px}
+        .progress{height:14px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;border:1px solid var(--border)}
+        .bar{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green),var(--orange));border-radius:inherit;transition:width .6s ease}
+        .big-ball{
+            height:170px;
+            border-radius:24px;
+            display:grid;
+            place-items:center;
+            background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.22),transparent 20%),linear-gradient(135deg,rgba(56,189,248,.22),rgba(245,158,11,.16));
+            border:1px solid rgba(255,255,255,.14);
+            position:relative;
+            overflow:hidden;
+        }
+        .big-ball:after{
+            content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent,rgba(255,255,255,.18),transparent 30%);animation:spin 4s linear infinite;
+        }
+        .big-ball span{position:relative;z-index:1;font-size:4.2rem;filter:drop-shadow(0 12px 24px rgba(0,0,0,.4))}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .slot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px}
+        .slot{
+            background:linear-gradient(180deg,rgba(15,23,42,.86),rgba(30,41,59,.72));
+            border:1px solid var(--border);
+            border-radius:22px;
+            padding:18px;
+            min-height:132px;
+            position:relative;
+            overflow:hidden;
+            transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;
+        }
+        .slot.revealed{border-color:rgba(52,211,153,.42);box-shadow:0 0 28px rgba(52,211,153,.12)}
+        .slot.animating{border-color:rgba(245,158,11,.75);box-shadow:0 0 40px rgba(245,158,11,.25);transform:scale(1.02)}
+        .placeholder{color:var(--muted);font-size:.92rem;margin-bottom:8px}
+        .team{font-size:1.45rem;font-weight:950;line-height:1.35;color:var(--text)}
+        .team.hidden-team{color:rgba(255,255,255,.35);letter-spacing:4px}
+        .mini{margin-top:14px;color:var(--green);font-weight:800;font-size:.9rem}
+        .empty{
+            text-align:center;
+            color:var(--muted);
+            padding:70px 20px;
+            border:1px dashed rgba(255,255,255,.18);
+            border-radius:28px;
+            background:rgba(15,23,42,.5);
+        }
+        .overlay{
+            position:fixed; inset:0;
+            background:rgba(2,6,23,.86);
+            display:none;
+            align-items:center;
+            justify-content:center;
+            z-index:20;
+            backdrop-filter:blur(10px);
+        }
+        .overlay.show{display:flex}
+        .reveal-box{
+            width:min(760px,92vw);
+            text-align:center;
+            background:linear-gradient(180deg,rgba(15,23,42,.95),rgba(30,41,59,.92));
+            border:1px solid rgba(56,189,248,.35);
+            border-radius:34px;
+            padding:38px 26px;
+            box-shadow:0 35px 90px rgba(0,0,0,.55),0 0 60px rgba(56,189,248,.18);
+            position:relative;
+            overflow:hidden;
+        }
+        .reveal-box:before{content:"";position:absolute;inset:-40%;background:conic-gradient(transparent,rgba(56,189,248,.20),transparent,rgba(245,158,11,.16),transparent);animation:spin 3s linear infinite;opacity:.6}
+        .reveal-content{position:relative;z-index:1}
+        .reveal-label{color:var(--muted);font-size:1.15rem;margin-bottom:12px}
+        .rolling{
+            min-height:100px;
+            display:grid;
+            place-items:center;
+            font-size:clamp(2rem,6vw,4.2rem);
+            font-weight:1000;
+            color:var(--cyan);
+            text-shadow:0 0 30px rgba(56,189,248,.4);
+            direction:auto;
+        }
+        .final-name{color:var(--green);animation:pop .45s ease both}
+        @keyframes pop{0%{transform:scale(.72);opacity:.2}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+        .confetti{position:fixed;width:10px;height:14px;pointer-events:none;z-index:30;animation:fall 1.7s ease-in forwards}
+        @keyframes fall{to{transform:translateY(100vh) rotate(720deg);opacity:0}}
+        @media(max-width:850px){.status-card{grid-template-columns:1fr}.big-ball{height:120px}.big-ball span{font-size:3rem}.panel{padding:18px}}
+    </style>
+</head>
+<body class="noise">
+<header>
+    <div class="badge">🎲 LIVE DRAW</div>
+    <h1>War Zone Draw</h1>
+    <div class="sub">صفحة القرعة المباشرة للجمهور</div>
+</header>
+<main>
+    <section id="emptyState" class="empty">لسه مفيش قرعة متفعلة. افتح صفحة إعدادات القرعة وابدأ السحب.</section>
+
+    <section id="drawContent" style="display:none">
+        <div class="status-card">
+            <div class="panel">
+                <div class="title-line">
+                    <div>
+                        <div class="draw-title" id="drawTitle">قرعة البطولة</div>
+                        <div class="sub" id="drawMeta">---</div>
+                    </div>
+                    <div id="statusPill" class="pill">جاهزة</div>
+                </div>
+                <div class="progress-wrap">
+                    <div class="progress-info"><span id="progressText">0 / 0</span><span id="progressPercent">0%</span></div>
+                    <div class="progress"><div class="bar" id="progressBar"></div></div>
+                </div>
+            </div>
+            <div class="panel big-ball"><span>🏆</span></div>
+        </div>
+        <div class="slot-grid" id="slotsGrid"></div>
+    </section>
+</main>
+
+<div class="overlay" id="revealOverlay">
+    <div class="reveal-box">
+        <div class="reveal-content">
+            <div class="reveal-label" id="revealLabel">السحب الآن...</div>
+            <div class="rolling" id="rollingName">---</div>
+        </div>
+    </div>
+</div>
+
+<script>
+let lastEventId = localStorage.getItem('warzone_draw_last_event') || '';
+let currentDraw = null;
+let animatingPlaceholder = '';
+
+function statusArabic(status){
+    return {empty:'غير جاهزة', ready:'جاهزة', running:'شغالة الآن', finished:'انتهت'}[status] || status || 'جاهزة';
+}
+
+function escapeHtml(v){
+    return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function renderDraw(draw){
+    currentDraw = draw;
+    if(!draw){
+        document.getElementById('emptyState').style.display = 'block';
+        document.getElementById('drawContent').style.display = 'none';
+        return;
+    }
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('drawContent').style.display = 'block';
+    document.getElementById('drawTitle').innerText = draw.title || 'قرعة البطولة';
+    document.getElementById('drawMeta').innerText = `${draw.sport_label || draw.sport} — ${draw.version_label || draw.version}`;
+    const total = (draw.placeholders || []).length;
+    const revealed = Object.keys(draw.assignments || {}).length;
+    const percent = total ? Math.round((revealed / total) * 100) : 0;
+    document.getElementById('progressText').innerText = `${revealed} / ${total}`;
+    document.getElementById('progressPercent').innerText = `${percent}%`;
+    document.getElementById('progressBar').style.width = `${percent}%`;
+    const pill = document.getElementById('statusPill');
+    pill.innerText = statusArabic(draw.status);
+    pill.className = 'pill ' + (draw.status === 'finished' ? 'orange' : '');
+
+    const assignments = draw.assignments || {};
+    const html = (draw.placeholders || []).map(ph => {
+        const assigned = assignments[ph];
+        const isAnimating = animatingPlaceholder === ph;
+        return `<div class="slot ${assigned ? 'revealed' : ''} ${isAnimating ? 'animating' : ''}">
+            <div class="placeholder">الخانة / الرقم: <strong>${escapeHtml(ph)}</strong></div>
+            <div class="team ${assigned ? '' : 'hidden-team'}">${assigned ? escapeHtml(assigned) : '???'}</div>
+            <div class="mini">${assigned ? 'تم التحديث في الجداول ✅' : 'في انتظار السحب'}</div>
+        </div>`;
+    }).join('');
+    document.getElementById('slotsGrid').innerHTML = html || '<div class="empty">لا توجد خانات في القرعة الحالية.</div>';
+}
+
+function confetti(){
+    const colors = ['#38bdf8','#34d399','#f59e0b','#f87171','#ffffff'];
+    for(let i=0;i<70;i++){
+        const p = document.createElement('div');
+        p.className = 'confetti';
+        p.style.left = Math.random()*100 + 'vw';
+        p.style.top = '-20px';
+        p.style.background = colors[Math.floor(Math.random()*colors.length)];
+        p.style.animationDelay = Math.random()*0.35 + 's';
+        p.style.transform = `rotate(${Math.random()*360}deg)`;
+        document.body.appendChild(p);
+        setTimeout(()=>p.remove(), 2200);
+    }
+}
+
+function runRevealAnimation(event, draw){
+    const overlay = document.getElementById('revealOverlay');
+    const rolling = document.getElementById('rollingName');
+    const label = document.getElementById('revealLabel');
+    const pool = (draw.teams || []).length ? draw.teams : ['War Zone'];
+    animatingPlaceholder = event.placeholder || '';
+    label.innerText = `سحب الخانة: ${event.placeholder || ''}`;
+    overlay.classList.add('show');
+    renderDraw(draw);
+    let count = 0;
+    const timer = setInterval(()=>{
+        rolling.className = 'rolling';
+        rolling.innerText = pool[Math.floor(Math.random()*pool.length)] || '---';
+        count++;
+    }, 90);
+    setTimeout(()=>{
+        clearInterval(timer);
+        rolling.innerText = event.team || '---';
+        rolling.className = 'rolling final-name';
+        confetti();
+    }, 2400);
+    setTimeout(()=>{
+        overlay.classList.remove('show');
+        animatingPlaceholder = '';
+        renderDraw(draw);
+    }, 4200);
+}
+
+function runBatchAnimation(event, draw){
+    const overlay = document.getElementById('revealOverlay');
+    const rolling = document.getElementById('rollingName');
+    const label = document.getElementById('revealLabel');
+    overlay.classList.add('show');
+    label.innerText = 'تم سحب باقي القرعة';
+    rolling.innerText = 'القرعة اكتملت ✅';
+    rolling.className = 'rolling final-name';
+    confetti();
+    setTimeout(()=>overlay.classList.remove('show'), 3000);
+}
+
+async function loadState(){
+    try{
+        const res = await fetch('/draw-state?ts=' + Date.now());
+        const data = await res.json();
+        const draw = data.draw;
+        if(!draw){ renderDraw(null); return; }
+        const event = draw.last_event || {};
+        const eventId = event.event_id || '';
+        const shouldAnimate = eventId && eventId !== lastEventId;
+        renderDraw(draw);
+        if(shouldAnimate){
+            lastEventId = eventId;
+            localStorage.setItem('warzone_draw_last_event', eventId);
+            if(event.type === 'reveal') runRevealAnimation(event, draw);
+            else if(event.type === 'shuffle_remaining') runBatchAnimation(event, draw);
+            else if(event.type === 'start') confetti();
+        }
+    }catch(e){ console.error(e); }
+}
+
+loadState();
+setInterval(loadState, 1500);
+</script>
+</body>
+</html>
