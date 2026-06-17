@@ -168,6 +168,19 @@ class SheetLinksPayload(BaseModel):
     matches: Dict[str, str] = {}
 
 
+class DrawSetupPayload(BaseModel):
+    sport: str
+    version: str
+    title: str = ""
+    placeholders: List[str]
+    teams: List[str]
+
+
+class DrawControlPayload(BaseModel):
+    sport: str
+    version: str
+    action: str  # set_active / start / reveal_next / shuffle_remaining / reset
+
 
 # =========================
 # Data helpers
@@ -228,6 +241,69 @@ def default_group_overrides() -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
     return {sport: {"1": [], "2": []} for sport in SPORTS}
 
 
+def default_draw_data() -> Dict[str, Any]:
+    return {
+        "active_key": "",
+        "draws": {},
+    }
+
+
+def ensure_draw_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    draw = data.setdefault("draw", default_draw_data())
+    if not isinstance(draw, dict):
+        draw = default_draw_data()
+        data["draw"] = draw
+    draw.setdefault("active_key", "")
+    draw.setdefault("draws", {})
+    if not isinstance(draw.get("draws"), dict):
+        draw["draws"] = {}
+    return draw
+
+
+def make_draw_key(sport: str, version: str) -> str:
+    return f"{sport}|{version}"
+
+
+def blank_draw(sport: str, version: str) -> Dict[str, Any]:
+    return {
+        "key": make_draw_key(sport, version),
+        "sport": sport,
+        "sport_label": SPORT_LABELS.get(sport, sport),
+        "version": version,
+        "version_label": VERSION_LABELS.get(version, version),
+        "title": f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}",
+        "placeholders": [],
+        "teams": [],
+        "assignments": {},
+        "revealed": [],
+        "status": "empty",
+        "last_event": None,
+        "applied_aliases": {},
+        "updated_at": "",
+    }
+
+
+def get_draw_record(data: Dict[str, Any], sport: str, version: str) -> Dict[str, Any]:
+    draw_data = ensure_draw_data(data)
+    key = make_draw_key(sport, version)
+    record = draw_data["draws"].setdefault(key, blank_draw(sport, version))
+    record.setdefault("key", key)
+    record.setdefault("sport", sport)
+    record.setdefault("sport_label", SPORT_LABELS.get(sport, sport))
+    record.setdefault("version", version)
+    record.setdefault("version_label", VERSION_LABELS.get(version, version))
+    record.setdefault("title", f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}")
+    record.setdefault("placeholders", [])
+    record.setdefault("teams", [])
+    record.setdefault("assignments", {})
+    record.setdefault("revealed", [])
+    record.setdefault("status", "empty")
+    record.setdefault("last_event", None)
+    record.setdefault("applied_aliases", {})
+    record.setdefault("updated_at", "")
+    return record
+
+
 def blank_data() -> Dict[str, Any]:
     return {
         "groups": {sport: {"1": {}, "2": {}} for sport in SPORTS},
@@ -237,6 +313,7 @@ def blank_data() -> Dict[str, Any]:
         "team_name_overrides": {},
         "group_overrides": default_group_overrides(),
         "sheet_links": default_sheet_links(),
+        "draw": default_draw_data(),
     }
 
 
@@ -260,6 +337,7 @@ def load_data() -> Dict[str, Any]:
     data.setdefault("team_name_overrides", {})
     data.setdefault("group_overrides", {})
     ensure_sheet_links(data)
+    ensure_draw_data(data)
     for sport in SPORTS:
         data["groups"].setdefault(sport, {})
         data["groups"][sport].setdefault("1", {})
@@ -685,6 +763,110 @@ def build_group_overrides_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return items
 
 
+def build_draw_placeholder_options(data: Dict[str, Any], sport: str, version: str) -> List[Dict[str, Any]]:
+    """Placeholders are the raw names/numbers that currently exist in the sheet before aliases.
+    The draw maps those placeholders to real team names, and that mapping is saved as team_name_overrides.
+    """
+    if sport not in SPORTS or version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="اللعبة أو التاب غير صحيح")
+
+    items: Dict[str, Dict[str, Any]] = {}
+
+    def add(name: Any, source: str, group: str = "") -> None:
+        clean = clean_team_name(name)
+        if not clean or clean == "-":
+            return
+        key = normalize_text(clean)
+        if key not in items:
+            items[key] = {"name": clean, "sources": [], "groups": []}
+        if source and source not in items[key]["sources"]:
+            items[key]["sources"].append(source)
+        if group and group not in items[key]["groups"]:
+            items[key]["groups"].append(group)
+
+    for row in get_sheet_rows_for_groups(sport, version):
+        group_name = clean_team_name(row.get("المجموعة", row.get("Group", "A"))) or "A"
+        add(get_team_name_from_row(row), f"{VERSION_LABELS.get(version)} / مجموعة {group_name}", group_name)
+
+    # Fallback: if the group sheet is empty, use effective/manual groups as placeholders.
+    if not items:
+        for group_name, teams in get_effective_groups(data, sport, version).items():
+            for team in teams:
+                add(team, f"حل بديل / مجموعة {group_name}", group_name)
+
+    # Also include raw names that appear in schedule cells for the selected sport.
+    for day_name in ["Day1", "Day2"]:
+        for row in get_schedule_rows(day_name):
+            column = get_schedule_sport_column(sport)
+            raw_match_text = clean_team_name(row.get(column, ""))
+            if not raw_match_text or raw_match_text == "-":
+                continue
+            t1, t2 = parse_match_text(raw_match_text)
+            source = f"جدول ماتشات {DAY_LABELS.get(day_name, day_name)}"
+            if t1 and t2:
+                add(t1, source)
+                add(t2, source)
+            else:
+                add(raw_match_text, source)
+
+    out = []
+    for item in items.values():
+        label_bits = []
+        if item.get("groups"):
+            label_bits.append("مجموعة " + ", ".join(item["groups"][:2]))
+        if item.get("sources"):
+            label_bits.append(" / ".join(item["sources"][:2]))
+        out.append({
+            "name": item["name"],
+            "groups": item.get("groups", []),
+            "sources": item.get("sources", []),
+            "label": item["name"] + (" — " + "، ".join(label_bits) if label_bits else ""),
+        })
+    out.sort(key=lambda x: normalize_text(x["name"]))
+    return out
+
+
+def remove_draw_aliases(data: Dict[str, Any], draw: Dict[str, Any]) -> None:
+    overrides = data.setdefault("team_name_overrides", {})
+    applied = draw.get("applied_aliases", {}) or {}
+    for placeholder, team in list(applied.items()):
+        for key in list(overrides.keys()):
+            if normalize_text(key) == normalize_text(placeholder) and normalize_text(overrides.get(key, "")) == normalize_text(team):
+                del overrides[key]
+    draw["applied_aliases"] = {}
+
+
+def apply_draw_assignment_alias(data: Dict[str, Any], draw: Dict[str, Any], placeholder: str, team: str) -> None:
+    placeholder = clean_team_name(placeholder)
+    team = clean_team_name(team)
+    if not placeholder or not team:
+        return
+    data.setdefault("team_name_overrides", {})[placeholder] = team
+    draw.setdefault("applied_aliases", {})[placeholder] = team
+
+
+def draw_public_state(data: Dict[str, Any]) -> Dict[str, Any]:
+    draw_data = ensure_draw_data(data)
+    active_key = draw_data.get("active_key", "")
+    active = draw_data.get("draws", {}).get(active_key) if active_key else None
+    if not active:
+        return {"active_key": "", "draw": None, "message": "لسه مفيش قرعة متفعلة"}
+    record = dict(active)
+    record["total"] = len(record.get("placeholders", []))
+    record["revealed_count"] = len(record.get("revealed", []))
+    return {"active_key": active_key, "draw": record}
+
+
+def validate_draw_identity(sport: str, version: str) -> tuple[str, str]:
+    sport = clean_team_name(sport)
+    version = clean_team_name(version)
+    if sport not in SPORTS:
+        raise HTTPException(status_code=400, detail="اللعبة غير صحيحة")
+    if version not in ["1", "2"]:
+        raise HTTPException(status_code=400, detail="التاب غير صحيح")
+    return sport, version
+
+
 def find_group_for_match(data: Dict[str, Any], sport: str, team1: str, team2: str) -> Dict[str, str]:
     team1 = apply_team_override(data, team1)
     team2 = apply_team_override(data, team2)
@@ -946,6 +1128,16 @@ async def serve_sheets():
     return FileResponse("sheets.html")
 
 
+@app.get("/draw")
+async def serve_draw():
+    return FileResponse("draw.html")
+
+
+@app.get("/draw-settings")
+async def serve_draw_settings():
+    return FileResponse("draw_settings.html")
+
+
 @app.get("/sw.js")
 async def serve_sw():
     return FileResponse("sw.js", media_type="application/javascript")
@@ -1027,6 +1219,11 @@ def get_site_settings():
     return {"visibility": data.get("visibility", DEFAULT_VISIBILITY.copy())}
 
 
+@app.get("/draw-state")
+def get_draw_state():
+    return draw_public_state(load_data())
+
+
 # =========================
 # Admin data routes
 # =========================
@@ -1050,7 +1247,185 @@ def get_admin_data(request: Request):
         "finals": data.get("finals", {}),
         "visibility": data.get("visibility", DEFAULT_VISIBILITY.copy()),
         "sheet_links": ensure_sheet_links(data),
+        "draw": ensure_draw_data(data),
     }
+
+
+@app.get("/admin/draw-data")
+def get_admin_draw_data(request: Request, sport: str = Query("Football"), version: str = Query("1")):
+    require_admin(request)
+    sport, version = validate_draw_identity(sport, version)
+    data = load_data()
+    draw = get_draw_record(data, sport, version)
+    return {
+        "sports": SPORTS,
+        "sport_labels": SPORT_LABELS,
+        "version_labels": VERSION_LABELS,
+        "active_key": ensure_draw_data(data).get("active_key", ""),
+        "draw": draw,
+        "all_draws": ensure_draw_data(data).get("draws", {}),
+        "placeholders": build_draw_placeholder_options(data, sport, version),
+        "team_name_overrides": get_team_overrides(data),
+    }
+
+
+@app.get("/admin/draw-placeholders")
+def get_admin_draw_placeholders(request: Request, sport: str = Query("Football"), version: str = Query("1")):
+    require_admin(request)
+    sport, version = validate_draw_identity(sport, version)
+    return build_draw_placeholder_options(load_data(), sport, version)
+
+
+@app.post("/admin/draw/setup")
+def save_draw_setup(payload: DrawSetupPayload, request: Request):
+    require_admin(request)
+    sport, version = validate_draw_identity(payload.sport, payload.version)
+
+    placeholders: List[str] = []
+    seen_placeholders = set()
+    for item in payload.placeholders:
+        clean = clean_team_name(item)
+        key = normalize_text(clean)
+        if clean and key not in seen_placeholders:
+            placeholders.append(clean)
+            seen_placeholders.add(key)
+
+    teams: List[str] = []
+    seen_teams = set()
+    for item in payload.teams:
+        clean = clean_team_name(item)
+        key = normalize_text(clean)
+        if clean and key not in seen_teams:
+            teams.append(clean)
+            seen_teams.add(key)
+
+    if not placeholders:
+        raise HTTPException(status_code=400, detail="اختار الأرقام/الخانات اللي هتدخل القرعة")
+    if not teams:
+        raise HTTPException(status_code=400, detail="اكتب الفرق اللي هتدخل القرعة")
+    if len(placeholders) != len(teams):
+        raise HTTPException(status_code=400, detail=f"عدد الفرق لازم يساوي عدد الخانات. الخانات: {len(placeholders)}، الفرق: {len(teams)}")
+
+    data = load_data()
+    draw = get_draw_record(data, sport, version)
+    remove_draw_aliases(data, draw)
+    draw.update({
+        "key": make_draw_key(sport, version),
+        "sport": sport,
+        "sport_label": SPORT_LABELS.get(sport, sport),
+        "version": version,
+        "version_label": VERSION_LABELS.get(version, version),
+        "title": clean_team_name(payload.title) or f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}",
+        "placeholders": placeholders,
+        "teams": teams,
+        "assignments": {},
+        "revealed": [],
+        "status": "ready",
+        "last_event": {"type": "setup", "event_id": hashlib.sha1(datetime.utcnow().isoformat().encode()).hexdigest()[:12], "at": datetime.utcnow().isoformat() + "Z"},
+        "applied_aliases": {},
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    })
+    ensure_draw_data(data)["active_key"] = make_draw_key(sport, version)
+    save_data(data)
+    return {"status": "success", "message": "تم حفظ إعدادات القرعة وتفعيل صفحة العرض", "draw": draw}
+
+
+@app.post("/admin/draw/control")
+def control_draw(payload: DrawControlPayload, request: Request):
+    require_admin(request)
+    sport, version = validate_draw_identity(payload.sport, payload.version)
+    action = clean_team_name(payload.action)
+    if action not in ["set_active", "start", "reveal_next", "shuffle_remaining", "reset"]:
+        raise HTTPException(status_code=400, detail="أمر القرعة غير صحيح")
+
+    data = load_data()
+    draw_data = ensure_draw_data(data)
+    draw = get_draw_record(data, sport, version)
+    draw_data["active_key"] = make_draw_key(sport, version)
+
+    if action == "set_active":
+        draw["last_event"] = {"type": "set_active", "event_id": hashlib.sha1(datetime.utcnow().isoformat().encode()).hexdigest()[:12], "at": datetime.utcnow().isoformat() + "Z"}
+        message = "تم تفعيل القرعة على صفحة العرض"
+
+    elif action == "start":
+        if not draw.get("placeholders") or not draw.get("teams"):
+            raise HTTPException(status_code=400, detail="احفظ إعدادات القرعة الأول")
+        draw["status"] = "running"
+        draw["last_event"] = {"type": "start", "event_id": hashlib.sha1(datetime.utcnow().isoformat().encode()).hexdigest()[:12], "at": datetime.utcnow().isoformat() + "Z"}
+        message = "بدأت القرعة على صفحة العرض"
+
+    elif action == "reset":
+        remove_draw_aliases(data, draw)
+        draw["assignments"] = {}
+        draw["revealed"] = []
+        draw["status"] = "ready" if draw.get("placeholders") and draw.get("teams") else "empty"
+        draw["last_event"] = {"type": "reset", "event_id": hashlib.sha1(datetime.utcnow().isoformat().encode()).hexdigest()[:12], "at": datetime.utcnow().isoformat() + "Z"}
+        message = "تم تصفير القرعة وحذف الاستبدالات التي نتجت عنها"
+
+    elif action == "reveal_next":
+        if not draw.get("placeholders") or not draw.get("teams"):
+            raise HTTPException(status_code=400, detail="احفظ إعدادات القرعة الأول")
+        assignments = draw.setdefault("assignments", {})
+        placeholders = list(draw.get("placeholders", []))
+        teams = list(draw.get("teams", []))
+        next_placeholder = next((p for p in placeholders if p not in assignments), "")
+        if not next_placeholder:
+            draw["status"] = "finished"
+            raise HTTPException(status_code=400, detail="كل الخانات اتسحبت بالفعل")
+        assigned_teams = {normalize_text(t) for t in assignments.values()}
+        remaining_teams = [t for t in teams if normalize_text(t) not in assigned_teams]
+        if not remaining_teams:
+            draw["status"] = "finished"
+            raise HTTPException(status_code=400, detail="كل الفرق اتسحبت بالفعل")
+        import random
+        selected_team = random.choice(remaining_teams)
+        assignments[next_placeholder] = selected_team
+        draw.setdefault("revealed", []).append(next_placeholder)
+        apply_draw_assignment_alias(data, draw, next_placeholder, selected_team)
+        draw["status"] = "finished" if len(assignments) >= len(placeholders) else "running"
+        draw["last_event"] = {
+            "type": "reveal",
+            "event_id": hashlib.sha1(f"{datetime.utcnow().isoformat()}|{next_placeholder}|{selected_team}".encode()).hexdigest()[:12],
+            "placeholder": next_placeholder,
+            "team": selected_team,
+            "revealed_count": len(assignments),
+            "total": len(placeholders),
+            "at": datetime.utcnow().isoformat() + "Z",
+        }
+        message = f"تم سحب {selected_team} بدل {next_placeholder}"
+
+    elif action == "shuffle_remaining":
+        if not draw.get("placeholders") or not draw.get("teams"):
+            raise HTTPException(status_code=400, detail="احفظ إعدادات القرعة الأول")
+        import random
+        assignments = draw.setdefault("assignments", {})
+        placeholders = [p for p in draw.get("placeholders", []) if p not in assignments]
+        assigned_teams = {normalize_text(t) for t in assignments.values()}
+        remaining_teams = [t for t in draw.get("teams", []) if normalize_text(t) not in assigned_teams]
+        if len(placeholders) != len(remaining_teams):
+            raise HTTPException(status_code=400, detail="عدد الخانات المتبقية لا يساوي عدد الفرق المتبقية")
+        random.shuffle(remaining_teams)
+        batch = []
+        for placeholder, team in zip(placeholders, remaining_teams):
+            assignments[placeholder] = team
+            if placeholder not in draw.setdefault("revealed", []):
+                draw["revealed"].append(placeholder)
+            apply_draw_assignment_alias(data, draw, placeholder, team)
+            batch.append({"placeholder": placeholder, "team": team})
+        draw["status"] = "finished"
+        draw["last_event"] = {
+            "type": "shuffle_remaining",
+            "event_id": hashlib.sha1(datetime.utcnow().isoformat().encode()).hexdigest()[:12],
+            "batch": batch,
+            "revealed_count": len(assignments),
+            "total": len(draw.get("placeholders", [])),
+            "at": datetime.utcnow().isoformat() + "Z",
+        }
+        message = "تم سحب كل الخانات المتبقية وتحديث الجداول"
+
+    draw["updated_at"] = datetime.utcnow().isoformat() + "Z"
+    save_data(data)
+    return {"status": "success", "message": message, "draw": draw, "public_state": draw_public_state(data)}
 
 
 @app.get("/admin/sheet-links")
