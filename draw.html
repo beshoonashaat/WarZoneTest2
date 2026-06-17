@@ -160,7 +160,35 @@
         @keyframes pop{0%{transform:scale(.72);opacity:.2}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
         .confetti{position:fixed;width:10px;height:14px;pointer-events:none;z-index:30;animation:fall 1.7s ease-in forwards}
         @keyframes fall{to{transform:translateY(100vh) rotate(720deg);opacity:0}}
-        @media(max-width:850px){.status-card{grid-template-columns:1fr}.big-ball{height:120px}.big-ball span{font-size:3rem}.panel{padding:18px}}
+
+        .groups-panel{margin-top:26px}
+        .groups-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+        .groups-head h2{margin:0;font-size:1.6rem;color:var(--text)}
+        .groups-actions,.sports-filter,.version-filter{display:flex;gap:10px;flex-wrap:wrap}
+        .filter-btn{
+            border:1px solid rgba(255,255,255,.12);
+            color:var(--text);
+            background:rgba(15,23,42,.72);
+            border-radius:14px;
+            padding:10px 14px;
+            cursor:pointer;
+            font-weight:850;
+            transition:.2s ease;
+        }
+        .filter-btn:hover,.filter-btn.active{border-color:rgba(56,189,248,.6);background:rgba(56,189,248,.16);color:#e0f7ff;transform:translateY(-1px)}
+        .standings-area{display:none;margin-top:14px}
+        .standings-area.show{display:block}
+        .group-container{margin:18px 0 30px;overflow-x:auto}
+        .group-title{margin:0 0 12px;color:var(--cyan);border-right:4px solid var(--orange);padding-right:10px;font-size:1.25rem}
+        .standings-table{width:100%;border-collapse:collapse;min-width:860px;background:rgba(255,255,255,.95);color:#0f172a;border-radius:14px;overflow:hidden}
+        .standings-table th,.standings-table td{padding:12px 14px;text-align:center;border-bottom:1px solid #e2e8f0}
+        .standings-table th{background:#1e3a8a;color:white;font-weight:800}
+        .standings-table tr:nth-child(even){background:#f8fafc}
+        .standings-table .rank{font-weight:900;color:#64748b;width:60px}
+        .q-badge{display:inline-block;margin-right:8px;background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:999px;padding:2px 8px;font-size:.75rem;font-weight:900}
+        .loading-text{padding:25px;text-align:center;color:var(--muted)}
+
+        @media(max-width:850px){.status-card{grid-template-columns:1fr}.big-ball{height:120px}.big-ball span{font-size:3rem}.panel{padding:18px}.standings-table{min-width:760px}}
     </style>
 </head>
 <body class="noise">
@@ -190,6 +218,28 @@
             <div class="panel big-ball"><span>🏆</span></div>
         </div>
         <div class="slot-grid" id="slotsGrid"></div>
+
+        <section class="panel groups-panel">
+            <div class="groups-head">
+                <h2>📊 عرض المجموعات</h2>
+                <div class="groups-actions">
+                    <button class="filter-btn" id="toggleGroupsBtn" onclick="toggleGroupsArea()">إظهار المجموعات</button>
+                </div>
+            </div>
+            <div class="standings-area" id="standingsArea">
+                <div class="version-filter" style="margin-bottom:12px">
+                    <button class="filter-btn active" id="versionBtn1" onclick="setDrawGroupsVersion('1', this)">المجموعات</button>
+                    <button class="filter-btn" id="versionBtn2" onclick="setDrawGroupsVersion('2', this)">المجموعات 2</button>
+                </div>
+                <div class="sports-filter" id="drawSportsFilter">
+                    <button class="filter-btn active" onclick="loadDrawGroups('Football', this)">Football ⚽</button>
+                    <button class="filter-btn" onclick="loadDrawGroups('Dodgeball', this)">Dodgeball 🤾🏻</button>
+                    <button class="filter-btn" onclick="loadDrawGroups('Volleyball', this)">Volleyball 🏐</button>
+                    <button class="filter-btn" onclick="loadDrawGroups('Ultimate Ball', this)">Ultimate Ball 🥏</button>
+                </div>
+                <div id="drawGroupsContainer" class="loading-text">اختار اللعبة لعرض المجموعات.</div>
+            </div>
+        </section>
     </section>
 </main>
 
@@ -206,9 +256,18 @@
 let lastEventId = localStorage.getItem('warzone_draw_last_event') || '';
 let currentDraw = null;
 let animatingPlaceholder = '';
+let drawGroupsVersion = '1';
+let drawGroupsSport = 'Football';
 
 function statusArabic(status){
     return {empty:'غير جاهزة', ready:'جاهزة', running:'شغالة الآن', finished:'انتهت'}[status] || status || 'جاهزة';
+}
+
+function publicDrawTitle(draw){
+    const raw = String(draw?.title || '').trim();
+    const banned = ['Football','Dodgeball','Volleyball','Ultimate Ball','Ultimate','⚽','🤾','🏐','🥏','المجموعات 2','المجموعات'];
+    if(!raw || banned.some(x => raw.includes(x))) return 'قرعة War Zone';
+    return raw;
 }
 
 function escapeHtml(v){
@@ -224,8 +283,8 @@ function renderDraw(draw){
     }
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('drawContent').style.display = 'block';
-    document.getElementById('drawTitle').innerText = draw.title || 'قرعة البطولة';
-    document.getElementById('drawMeta').innerText = `${draw.sport_label || draw.sport} — ${draw.version_label || draw.version}`;
+    document.getElementById('drawTitle').innerText = publicDrawTitle(draw);
+    document.getElementById('drawMeta').innerText = 'السحب المباشر للجمهور';
     const total = (draw.placeholders || []).length;
     const revealed = Object.keys(draw.assignments || {}).length;
     const percent = total ? Math.round((revealed / total) * 100) : 0;
@@ -268,28 +327,50 @@ function runRevealAnimation(event, draw){
     const overlay = document.getElementById('revealOverlay');
     const rolling = document.getElementById('rollingName');
     const label = document.getElementById('revealLabel');
-    const pool = (draw.teams || []).length ? draw.teams : ['War Zone'];
-    animatingPlaceholder = event.placeholder || '';
-    label.innerText = `سحب الخانة: ${event.placeholder || ''}`;
+    const teamPool = (draw.teams || []).length ? draw.teams : ['War Zone'];
+    const numberPool = (draw.placeholders || []).length ? draw.placeholders : ['?'];
+    animatingPlaceholder = '';
     overlay.classList.add('show');
-    renderDraw(draw);
+
+    label.innerText = 'سحب الفريق...';
+    rolling.className = 'rolling';
     let count = 0;
-    const timer = setInterval(()=>{
+    const teamTimer = setInterval(()=>{
         rolling.className = 'rolling';
-        rolling.innerText = pool[Math.floor(Math.random()*pool.length)] || '---';
+        rolling.innerText = teamPool[Math.floor(Math.random()*teamPool.length)] || '---';
         count++;
-    }, 90);
+    }, 85);
+
     setTimeout(()=>{
-        clearInterval(timer);
+        clearInterval(teamTimer);
         rolling.innerText = event.team || '---';
         rolling.className = 'rolling final-name';
         confetti();
-    }, 2400);
+    }, 2100);
+
+    setTimeout(()=>{
+        label.innerText = 'سحب الرقم / الخانة...';
+        rolling.className = 'rolling';
+        let numberCount = 0;
+        const numberTimer = setInterval(()=>{
+            rolling.innerText = numberPool[Math.floor(Math.random()*numberPool.length)] || '---';
+            numberCount++;
+        }, 80);
+        setTimeout(()=>{
+            clearInterval(numberTimer);
+            rolling.innerText = event.placeholder || '---';
+            rolling.className = 'rolling final-name';
+            animatingPlaceholder = event.placeholder || '';
+            renderDraw(draw);
+            confetti();
+        }, 1700);
+    }, 2850);
+
     setTimeout(()=>{
         overlay.classList.remove('show');
         animatingPlaceholder = '';
         renderDraw(draw);
-    }, 4200);
+    }, 6000);
 }
 
 function runBatchAnimation(event, draw){
@@ -302,6 +383,62 @@ function runBatchAnimation(event, draw){
     rolling.className = 'rolling final-name';
     confetti();
     setTimeout(()=>overlay.classList.remove('show'), 3000);
+}
+
+
+function toggleGroupsArea(){
+    const area = document.getElementById('standingsArea');
+    const btn = document.getElementById('toggleGroupsBtn');
+    const showing = area.classList.toggle('show');
+    btn.innerText = showing ? 'إخفاء المجموعات' : 'إظهار المجموعات';
+    if(showing) loadDrawGroups(drawGroupsSport);
+}
+function setDrawGroupsVersion(version, el){
+    drawGroupsVersion = version;
+    document.querySelectorAll('.version-filter .filter-btn').forEach(b=>b.classList.remove('active'));
+    if(el) el.classList.add('active');
+    loadDrawGroups(drawGroupsSport);
+}
+async function loadDrawGroups(sportName, el=null){
+    drawGroupsSport = sportName;
+    document.querySelectorAll('#drawSportsFilter .filter-btn').forEach(b=>b.classList.remove('active'));
+    if(el) el.classList.add('active');
+    const container = document.getElementById('drawGroupsContainer');
+    if(!container) return;
+    container.innerHTML = '<div class="loading-text">جاري تحميل المجموعات...</div>';
+    const apiSport = drawGroupsVersion === '2' ? sportName + '2' : sportName;
+    try{
+        const res = await fetch(`/standings/${encodeURIComponent(apiSport)}?ts=${Date.now()}`);
+        const groups = await res.json();
+        if(!groups || Object.keys(groups).length === 0){
+            container.innerHTML = '<div class="loading-text">لسه مفيش مجموعات متاحة.</div>';
+            return;
+        }
+        let fullHtml = '';
+        for(const groupName in groups){
+            let groupHtml = `<div class="group-container"><h3 class="group-title">المجموعة ${escapeHtml(groupName)}</h3><table class="standings-table"><thead><tr>
+                <th class="rank">المركز</th><th>الفريق</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>فرق</th><th>النقاط</th>
+            </tr></thead><tbody>`;
+            groups[groupName].forEach((team, index)=>{
+                const teamName = team['الفريق'] || 'غير معروف';
+                const isQualified = index === 0 || index === 1;
+                const rowStyle = isQualified ? 'background:#dcfce7;' : (index === 2 && drawGroupsVersion !== '2' ? 'background:#fef9c3;' : '');
+                groupHtml += `<tr style="${rowStyle}">
+                    <td class="rank">${index + 1}</td>
+                    <td style="text-align:right;padding-right:24px"><strong>${escapeHtml(teamName)}</strong>${isQualified ? '<span class="q-badge">Qualified</span>' : ''}</td>
+                    <td>${team['لعب'] || 0}</td><td>${team['فوز'] || 0}</td><td>${team['تعادل'] || 0}</td><td>${team['خسارة'] || 0}</td>
+                    <td>${team['له'] || 0}</td><td>${team['عليه'] || 0}</td><td>${team['فرق'] || 0}</td>
+                    <td style="color:#0284c7;font-weight:900">${team['نقاط'] || 0}</td>
+                </tr>`;
+            });
+            groupHtml += '</tbody></table></div>';
+            fullHtml += groupHtml;
+        }
+        container.innerHTML = fullHtml;
+    }catch(e){
+        console.error(e);
+        container.innerHTML = '<div class="loading-text" style="color:#f87171">فشل تحميل المجموعات.</div>';
+    }
 }
 
 async function loadState(){
