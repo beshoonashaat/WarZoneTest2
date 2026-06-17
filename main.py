@@ -271,7 +271,7 @@ def blank_draw(sport: str, version: str) -> Dict[str, Any]:
         "sport_label": SPORT_LABELS.get(sport, sport),
         "version": version,
         "version_label": VERSION_LABELS.get(version, version),
-        "title": f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}",
+        "title": "قرعة War Zone",
         "placeholders": [],
         "teams": [],
         "assignments": {},
@@ -292,7 +292,7 @@ def get_draw_record(data: Dict[str, Any], sport: str, version: str) -> Dict[str,
     record.setdefault("sport_label", SPORT_LABELS.get(sport, sport))
     record.setdefault("version", version)
     record.setdefault("version_label", VERSION_LABELS.get(version, version))
-    record.setdefault("title", f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}")
+    record.setdefault("title", "قرعة War Zone")
     record.setdefault("placeholders", [])
     record.setdefault("teams", [])
     record.setdefault("assignments", {})
@@ -1315,7 +1315,7 @@ def save_draw_setup(payload: DrawSetupPayload, request: Request):
         "sport_label": SPORT_LABELS.get(sport, sport),
         "version": version,
         "version_label": VERSION_LABELS.get(version, version),
-        "title": clean_team_name(payload.title) or f"قرعة {SPORT_LABELS.get(sport, sport)} - {VERSION_LABELS.get(version, version)}",
+        "title": clean_team_name(payload.title) or "قرعة War Zone",
         "placeholders": placeholders,
         "teams": teams,
         "assignments": {},
@@ -1368,8 +1368,8 @@ def control_draw(payload: DrawControlPayload, request: Request):
         assignments = draw.setdefault("assignments", {})
         placeholders = list(draw.get("placeholders", []))
         teams = list(draw.get("teams", []))
-        next_placeholder = next((p for p in placeholders if p not in assignments), "")
-        if not next_placeholder:
+        remaining_placeholders = [p for p in placeholders if p not in assignments]
+        if not remaining_placeholders:
             draw["status"] = "finished"
             raise HTTPException(status_code=400, detail="كل الخانات اتسحبت بالفعل")
         assigned_teams = {normalize_text(t) for t in assignments.values()}
@@ -1378,21 +1378,23 @@ def control_draw(payload: DrawControlPayload, request: Request):
             draw["status"] = "finished"
             raise HTTPException(status_code=400, detail="كل الفرق اتسحبت بالفعل")
         import random
+        # السحب الجديد: الفريق الأول عشوائيًا، وبعده الرقم/الخانة عشوائيًا
         selected_team = random.choice(remaining_teams)
-        assignments[next_placeholder] = selected_team
-        draw.setdefault("revealed", []).append(next_placeholder)
-        apply_draw_assignment_alias(data, draw, next_placeholder, selected_team)
+        selected_placeholder = random.choice(remaining_placeholders)
+        assignments[selected_placeholder] = selected_team
+        draw.setdefault("revealed", []).append(selected_placeholder)
+        apply_draw_assignment_alias(data, draw, selected_placeholder, selected_team)
         draw["status"] = "finished" if len(assignments) >= len(placeholders) else "running"
         draw["last_event"] = {
             "type": "reveal",
-            "event_id": hashlib.sha1(f"{datetime.utcnow().isoformat()}|{next_placeholder}|{selected_team}".encode()).hexdigest()[:12],
-            "placeholder": next_placeholder,
+            "event_id": hashlib.sha1(f"{datetime.utcnow().isoformat()}|{selected_team}|{selected_placeholder}".encode()).hexdigest()[:12],
+            "placeholder": selected_placeholder,
             "team": selected_team,
             "revealed_count": len(assignments),
             "total": len(placeholders),
             "at": datetime.utcnow().isoformat() + "Z",
         }
-        message = f"تم سحب {selected_team} بدل {next_placeholder}"
+        message = f"تم سحب الفريق {selected_team} ثم الرقم {selected_placeholder}"
 
     elif action == "shuffle_remaining":
         if not draw.get("placeholders") or not draw.get("teams"):
