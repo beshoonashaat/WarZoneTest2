@@ -74,13 +74,13 @@
 
     <section class="card">
         <h2>3) التحكم في القرعة</h2>
-        <p class="help">كل زر هنا بيعمل Update مباشر في صفحة الجمهور /draw. عند سحب فريق، الاستبدال بيتحفظ تلقائيًا في الجداول.</p>
+        <p class="help">كل زر هنا بيعمل Update مباشر في صفحة الجمهور /draw. السحب بيختار فريق عشوائيًا الأول، وبعدها رقم/خانة عشوائية، وبعدها الاستبدال بيتحفظ تلقائيًا في الجداول.</p>
         <div id="drawSummary" class="muted-box">لا توجد قرعة محفوظة.</div>
         <div class="toolbar" style="margin-top:12px">
             <button class="secondary" onclick="controlDraw('set_active')">تفعيل على صفحة العرض</button>
             <button class="green" onclick="controlDraw('start')">ابدأ القرعة 🎬</button>
-            <button class="orange" onclick="controlDraw('reveal_next')">اسحب التالي 🎲</button>
-            <button onclick="controlDraw('shuffle_remaining')">اسحب الباقي كله ⚡</button>
+            <button class="orange" onclick="controlDraw('reveal_next')">اسحب فريق ثم رقم 🎲</button>
+            <button onclick="controlDraw('shuffle_remaining')">اسحب باقي الفرق والأرقام ⚡</button>
             <button class="danger" onclick="controlDraw('reset')">Reset القرعة</button>
         </div>
         <div id="controlStatus" class="status"></div>
