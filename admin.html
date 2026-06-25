@@ -279,19 +279,20 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>اليوم</label>
-                        <select id="resultDay" onchange="loadAvailableMatches()">
+                        <select id="resultDay" onchange="handleResultFilterChange()">
                             <option value="Day1">اليوم الأول</option>
                             <option value="Day2">اليوم الثاني</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>اللعبة</label>
-                        <select id="resultSport" onchange="loadAvailableMatches()"></select>
+                        <select id="resultSport" onchange="handleResultFilterChange()"></select>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>الماتش من جدول الماتشات</label>
                     <select id="resultMatch" onchange="fillMatchData()"></select>
+                    <p class="help" id="resultMatchHint" style="font-size:0.82rem; margin-top:7px;">هيظهر هنا ماتشات اللعبة المختارة فقط.</p>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -751,6 +752,20 @@ async function reloadSheets() {
     } catch(e) { alert(e.message); }
 }
 
+async function handleResultFilterChange() {
+    // لما تغير اليوم أو اللعبة: نظف الخانات وحمّل ماتشات اللعبة المختارة فقط
+    selectedMatch = null;
+    const t1 = document.getElementById('team1');
+    const t2 = document.getElementById('team2');
+    if (t1) t1.value = '';
+    if (t2) t2.value = '';
+    const hint = document.getElementById('resultMatchHint');
+    const sport = document.getElementById('resultSport')?.value || '';
+    if (hint && adminData) hint.innerText = `هيظهر هنا ماتشات ${adminData.sport_labels[sport] || sport} فقط.`;
+    loadGroupsForResult();
+    await loadAvailableMatches();
+}
+
 function loadGroupsForResult() {
     if (!adminData) return;
     const sport = document.getElementById('resultSport').value;
@@ -769,8 +784,11 @@ async function loadAvailableMatches() {
     select.innerHTML = '<option>جاري التحميل...</option>';
     try {
         availableMatches = await apiJson(`/admin/available-schedule-matches?day_name=${encodeURIComponent(day)}&sport=${encodeURIComponent(sport)}`);
+        // حماية إضافية في الواجهة: حتى لو السيرفر رجّع أي بيانات زيادة، نعرض اللعبة المختارة فقط.
+        availableMatches = (availableMatches || []).filter(m => !m.sport || m.sport === sport);
         if (!availableMatches.length) {
-            select.innerHTML = '<option value="">لا توجد ماتشات متاحة أو كلها اتسجلت</option>';
+            const sportLabel = adminData?.sport_labels?.[sport] || sport;
+            select.innerHTML = `<option value="">لا توجد ماتشات متاحة لـ ${escapeHtml(sportLabel)} أو كلها اتسجلت</option>`;
             selectedMatch = null;
             return;
         }
@@ -785,7 +803,11 @@ async function loadAvailableMatches() {
 function fillMatchData() {
     const idx = document.getElementById('resultMatch').value;
     selectedMatch = availableMatches[idx] || null;
-    if (!selectedMatch) return;
+    const currentSport = document.getElementById('resultSport').value;
+    if (!selectedMatch || (selectedMatch.sport && selectedMatch.sport !== currentSport)) {
+        selectedMatch = null;
+        return;
+    }
     document.getElementById('team1').value = selectedMatch.team1 || '';
     document.getElementById('team2').value = selectedMatch.team2 || '';
     if (selectedMatch.version) {
