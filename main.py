@@ -416,6 +416,34 @@ def get_schedule_sport_column(sport: str) -> str:
     return clean
 
 
+def simplify_column_name(value: Any) -> str:
+    text = normalize_text(value)
+    keep = []
+    for ch in text:
+        if ch.isalnum() or ("\u0600" <= ch <= "\u06ff"):
+            keep.append(ch)
+    return "".join(keep)
+
+
+def get_schedule_match_value(row: Dict[str, Any], sport: str) -> Any:
+    # Strictly read the selected sport column only. This also handles headers with emojis/spaces.
+    preferred = get_schedule_sport_column(sport)
+    if preferred in row:
+        return row.get(preferred, "")
+
+    aliases = {
+        "Football": ["Football", "Football ⚽", "كرة القدم"],
+        "Dodgeball": ["Dodgeball", "Dodgeball 🤾🏻", "دودج بول", "دودجبول"],
+        "Volleyball": ["Volleyball", "Volleyball 🏐", "كرة طائرة", "الطائرة"],
+        "Ultimate Ball": ["Ultimate Ball", "Ultimate", "Ultimate 🥏", "التيميت", "التيميت بول"],
+    }
+    wanted = {simplify_column_name(x) for x in aliases.get(preferred, [preferred])}
+    for key, value in row.items():
+        if simplify_column_name(key) in wanted:
+            return value
+    return ""
+
+
 def make_schedule_key(day_name: str, sport: str, row_index: int, match_time: str, match_text: str) -> str:
     raw = f"{day_name}|{sport}|{row_index}|{match_time}|{match_text}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
@@ -913,7 +941,7 @@ def build_available_schedule_matches(day_name: str, sport: str) -> List[Dict[str
     available: List[Dict[str, Any]] = []
 
     for index, row in enumerate(raw_rows):
-        raw_match_text = str(row.get(column, "") or "").strip()
+        raw_match_text = str(get_schedule_match_value(row, sport) or "").strip()
         if not raw_match_text or raw_match_text == "-":
             continue
         match_time = str(row.get("التوقيت", row.get("time", row.get("Time", ""))) or "").strip()
